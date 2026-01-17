@@ -15,6 +15,81 @@ class _LoginScreenState extends State<LoginScreen> {
   bool loading = false;
   bool _obscurePassword = true;
 
+  void _showForgotPasswordDialog() {
+    final resetEmailController = TextEditingController();
+    // Pre-fill with email if already entered
+    resetEmailController.text = emailController.text.trim();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reset Password'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Enter your email address and we\'ll send you a link to reset your password.',
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: resetEmailController,
+              decoration: InputDecoration(
+                labelText: 'Email',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              keyboardType: TextInputType.emailAddress,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final email = resetEmailController.text.trim();
+              if (email.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please enter an email')),
+                );
+                return;
+              }
+              try {
+                await authService.sendPasswordResetEmail(email);
+                if (mounted) {
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Password reset link sent! Check your email.',
+                      ),
+                    ),
+                  );
+                }
+              } catch (e) {
+                String errorMessage = 'Failed to send reset email';
+                if (e.toString().contains('user-not-found')) {
+                  errorMessage = 'No account found with this email';
+                } else if (e.toString().contains('invalid-email')) {
+                  errorMessage = 'Invalid email format';
+                }
+                if (mounted) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text(errorMessage)));
+                }
+              }
+            },
+            child: const Text('Send Reset Link'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void login() async {
     if (emailController.text.trim().isEmpty) {
       ScaffoldMessenger.of(
@@ -135,7 +210,14 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               obscureText: _obscurePassword,
             ),
-            const SizedBox(height: 24),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: _showForgotPasswordDialog,
+                child: const Text('Forgot Password?'),
+              ),
+            ),
+            const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
