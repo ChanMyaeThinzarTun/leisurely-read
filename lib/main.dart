@@ -152,7 +152,7 @@ class _RoleBasedHome extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.warning, size: 80, color: Colors.orange),
+                  const Icon(Icons.warning, size: 80, color: Color(0xFFFFB74D)),
                   const SizedBox(height: 24),
                   const Text(
                     'User Profile Not Found',
@@ -220,7 +220,7 @@ class _PendingApprovalScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.pending, size: 80, color: Colors.orange),
+            const Icon(Icons.pending, size: 80, color: Color(0xFFFFB74D)),
             const SizedBox(height: 24),
             const Text(
               'Your writer account is pending admin approval',

@@ -143,7 +143,10 @@ class _UsersTabState extends State<_UsersTab> {
                       Tooltip(
                         message: 'Ban',
                         child: IconButton(
-                          icon: const Icon(Icons.lock, color: Colors.orange),
+                          icon: const Icon(
+                            Icons.lock,
+                            color: Color(0xFFFFB74D),
+                          ),
                           onPressed: () => _showBanDialog(context, user),
                         ),
                       ),

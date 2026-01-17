@@ -368,7 +368,7 @@ class _WriterHomeState extends State<WriterHome> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: Colors.orange.shade700,
+                        color: const Color(0xFFE57373),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: const Text(
@@ -892,7 +892,7 @@ class _EditStoryPageState extends State<EditStoryPage> {
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(ctx, true),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE57373)),
               child: const Text('Unpublish'),
             ),
           ],
@@ -1057,7 +1057,7 @@ class _EditStoryPageState extends State<EditStoryPage> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: _isDraft ? Colors.orange.shade700 : _accentColor,
+                  color: _isDraft ? const Color(0xFFE57373) : _accentColor,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
@@ -1096,7 +1096,7 @@ class _EditStoryPageState extends State<EditStoryPage> {
                           icon: Icon(_isDraft ? Icons.publish : Icons.unpublished_outlined),
                           label: Text(_isDraft ? 'Publish Story' : 'Unpublish Story'),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: _isDraft ? _accentColor : Colors.orange.shade700,
+                            backgroundColor: _isDraft ? _accentColor : const Color(0xFFE57373),
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(
