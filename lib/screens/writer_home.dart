@@ -142,7 +142,7 @@ class _WriterHomeState extends State<WriterHome> {
             )
           : ThemeData.light().copyWith(
               scaffoldBackgroundColor: Colors.grey.shade100,
-              appBarTheme: AppBarTheme(backgroundColor: Colors.white, elevation: 0),
+              appBarTheme: const AppBarTheme(backgroundColor: Colors.white, elevation: 0),
             ),
       child: Scaffold(
         body: SafeArea(
@@ -825,10 +825,11 @@ class _EditStoryPageState extends State<EditStoryPage> {
     );
 
     widget.onUpdated();
-    if (mounted)
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Saved')));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Saved')),
+      );
+    }
   }
 
   Future<void> _togglePublish() async {
