@@ -127,6 +127,13 @@ class FirestoreService {
     });
   }
 
+  Future<void> unpublishBook(String bookId) async {
+    await _firestore.collection('books').doc(bookId).update({
+      'isDraft': true,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
   Future<void> deleteBook(String bookId) async {
     // Delete all chapters
     final chapters = await _firestore

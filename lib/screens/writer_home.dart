@@ -132,12 +132,18 @@ class _WriterHomeState extends State<WriterHome> {
     final user = authService.getCurrentUser();
     final publishedBooks = _allBooks.where((b) => !b.isDraft).toList();
     final draftBooks = _allBooks.where((b) => b.isDraft).toList();
+    final isDarkMode = themeService.isDarkMode;
     
     return Theme(
-      data: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: _darkBg,
-        appBarTheme: const AppBarTheme(backgroundColor: _darkBg, elevation: 0),
-      ),
+      data: isDarkMode
+          ? ThemeData.dark().copyWith(
+              scaffoldBackgroundColor: _darkBg,
+              appBarTheme: const AppBarTheme(backgroundColor: _darkBg, elevation: 0),
+            )
+          : ThemeData.light().copyWith(
+              scaffoldBackgroundColor: Colors.grey.shade100,
+              appBarTheme: AppBarTheme(backgroundColor: Colors.white, elevation: 0),
+            ),
       child: Scaffold(
         body: SafeArea(
           child: _loading
@@ -152,12 +158,12 @@ class _WriterHomeState extends State<WriterHome> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text(
+                            Text(
                               'Write',
                               style: TextStyle(
                                 fontSize: 28,
                                 fontWeight: FontWeight.bold,
-                                color: _darkText,
+                                color: isDarkMode ? _darkText : Colors.black,
                               ),
                             ),
                             GestureDetector(
@@ -172,19 +178,19 @@ class _WriterHomeState extends State<WriterHome> {
                                 children: [
                                   Text(
                                     '@${user?.displayName ?? user?.email?.split('@').first ?? 'User'}',
-                                    style: const TextStyle(
-                                      color: _darkTextSecondary,
+                                    style: TextStyle(
+                                      color: isDarkMode ? _darkTextSecondary : Colors.grey.shade600,
                                       fontSize: 14,
                                     ),
                                   ),
                                   const SizedBox(width: 8),
                                   CircleAvatar(
                                     radius: 16,
-                                    backgroundColor: Colors.grey.shade700,
-                                    child: const Icon(
+                                    backgroundColor: isDarkMode ? Colors.grey.shade700 : Colors.grey.shade300,
+                                    child: Icon(
                                       Icons.person,
                                       size: 20,
-                                      color: Colors.white,
+                                      color: isDarkMode ? Colors.white : Colors.grey.shade600,
                                     ),
                                   ),
                                 ],
@@ -221,10 +227,10 @@ class _WriterHomeState extends State<WriterHome> {
                           children: [
                             const Icon(Icons.public, color: _accentColor, size: 20),
                             const SizedBox(width: 8),
-                            const Text(
+                            Text(
                               'Published Stories',
                               style: TextStyle(
-                                color: _darkText,
+                                color: isDarkMode ? _darkText : Colors.black,
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -279,10 +285,10 @@ class _WriterHomeState extends State<WriterHome> {
                           children: [
                             const Icon(Icons.edit_note, color: Colors.grey, size: 20),
                             const SizedBox(width: 8),
-                            const Text(
+                            Text(
                               'Drafts',
                               style: TextStyle(
-                                color: _darkText,
+                                color: isDarkMode ? _darkText : Colors.black,
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -338,8 +344,10 @@ class _WriterHomeState extends State<WriterHome> {
   }
 
   Widget _buildBookCard(BookModel book, {bool isDraft = false}) {
+    final isDarkMode = themeService.isDarkMode;
     return GestureDetector(
       onTap: () => _openEditStory(book),
+      onLongPress: () => _showDeleteStoryDialog(book),
       child: Container(
         width: 120,
         margin: const EdgeInsets.symmetric(horizontal: 4),
@@ -376,8 +384,8 @@ class _WriterHomeState extends State<WriterHome> {
               book.title,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: _darkText,
+              style: TextStyle(
+                color: isDarkMode ? _darkText : Colors.black,
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
               ),
@@ -388,22 +396,69 @@ class _WriterHomeState extends State<WriterHome> {
     );
   }
 
+  void _showDeleteStoryDialog(BookModel book) {
+    final isDarkMode = themeService.isDarkMode;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDarkMode ? _darkCard : Colors.white,
+        title: Text(
+          'Delete Story',
+          style: TextStyle(color: isDarkMode ? _darkText : Colors.black),
+        ),
+        content: Text(
+          'Are you sure you want to delete "${book.title}"? This will also delete all chapters and cannot be undone.',
+          style: TextStyle(color: isDarkMode ? _darkTextSecondary : Colors.grey.shade700),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel', style: TextStyle(color: isDarkMode ? _darkTextSecondary : Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await firestoreService.deleteBook(book.id);
+                _loadBooks();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Story deleted')),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error deleting story: $e')),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showStoryPicker() {
+    final isDarkMode = themeService.isDarkMode;
     showModalBottomSheet(
       context: context,
-      backgroundColor: _darkCard,
+      backgroundColor: isDarkMode ? _darkCard : Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (ctx) => ListView(
         shrinkWrap: true,
         children: [
-          const Padding(
-            padding: EdgeInsets.all(16),
+          Padding(
+            padding: const EdgeInsets.all(16),
             child: Text(
               'Select a story',
               style: TextStyle(
-                color: _darkText,
+                color: isDarkMode ? _darkText : Colors.black,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
@@ -416,10 +471,10 @@ class _WriterHomeState extends State<WriterHome> {
                 width: 40,
                 height: 55,
               ),
-              title: Text(book.title, style: const TextStyle(color: _darkText)),
+              title: Text(book.title, style: TextStyle(color: isDarkMode ? _darkText : Colors.black)),
               subtitle: Text(
                 book.category,
-                style: const TextStyle(color: _darkTextSecondary),
+                style: TextStyle(color: isDarkMode ? _darkTextSecondary : Colors.grey.shade600),
               ),
               onTap: () {
                 Navigator.pop(ctx);
@@ -557,11 +612,15 @@ class _CreateStoryPageState extends State<CreateStoryPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = themeService.isDarkMode;
     return Theme(
-      data: ThemeData.dark().copyWith(scaffoldBackgroundColor: _darkBg),
+      data: isDarkMode
+          ? ThemeData.dark().copyWith(scaffoldBackgroundColor: _darkBg)
+          : ThemeData.light().copyWith(scaffoldBackgroundColor: Colors.grey.shade100),
       child: Scaffold(
         appBar: AppBar(
-          backgroundColor: _darkBg,
+          backgroundColor: isDarkMode ? _darkBg : Colors.white,
+          foregroundColor: isDarkMode ? _darkText : Colors.black,
           leading: IconButton(
             icon: const Icon(Icons.close),
             onPressed: () => Navigator.pop(context),
@@ -570,9 +629,9 @@ class _CreateStoryPageState extends State<CreateStoryPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text(
+              child: Text(
                 'Skip',
-                style: TextStyle(color: _darkTextSecondary),
+                style: TextStyle(color: isDarkMode ? _darkTextSecondary : Colors.grey.shade600),
               ),
             ),
           ],
@@ -589,28 +648,28 @@ class _CreateStoryPageState extends State<CreateStoryPage> {
                   width: 80,
                   height: 110,
                   decoration: BoxDecoration(
-                    color: _darkCard,
+                    color: isDarkMode ? _darkCard : Colors.white,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey.shade700),
+                    border: Border.all(color: isDarkMode ? Colors.grey.shade700 : Colors.grey.shade300),
                   ),
                   child: _coverImage != null
                       ? ClipRRect(
                           borderRadius: BorderRadius.circular(8),
                           child: Image.memory(_coverImage!, fit: BoxFit.cover),
                         )
-                      : const Column(
+                      : Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
                               Icons.add_circle_outline,
-                              color: _darkTextSecondary,
+                              color: isDarkMode ? _darkTextSecondary : Colors.grey.shade500,
                               size: 24,
                             ),
-                            SizedBox(height: 4),
+                            const SizedBox(height: 4),
                             Text(
                               'Add a cover',
                               style: TextStyle(
-                                color: _darkTextSecondary,
+                                color: isDarkMode ? _darkTextSecondary : Colors.grey.shade500,
                                 fontSize: 10,
                               ),
                             ),
@@ -623,23 +682,23 @@ class _CreateStoryPageState extends State<CreateStoryPage> {
               // Title
               TextField(
                 controller: _titleController,
-                style: const TextStyle(color: _darkText),
-                decoration: const InputDecoration(
+                style: TextStyle(color: isDarkMode ? _darkText : Colors.black),
+                decoration: InputDecoration(
                   hintText: 'Story Title',
-                  hintStyle: TextStyle(color: _darkTextSecondary),
+                  hintStyle: TextStyle(color: isDarkMode ? _darkTextSecondary : Colors.grey.shade500),
                   border: InputBorder.none,
                 ),
               ),
-              Divider(color: Colors.grey.shade800),
+              Divider(color: isDarkMode ? Colors.grey.shade800 : Colors.grey.shade300),
 
               // Description
               TextField(
                 controller: _descController,
-                style: const TextStyle(color: _darkText),
+                style: TextStyle(color: isDarkMode ? _darkText : Colors.black),
                 maxLines: 3,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   hintText: 'Give a description of your story',
-                  hintStyle: TextStyle(color: _darkTextSecondary),
+                  hintStyle: TextStyle(color: isDarkMode ? _darkTextSecondary : Colors.grey.shade500),
                   border: InputBorder.none,
                 ),
               ),
@@ -689,6 +748,7 @@ class _EditStoryPageState extends State<EditStoryPage> {
   late String _category;
   late bool _isMature;
   late bool _isCompleted;
+  late bool _isDraft;
   Uint8List? _newCover;
   List<dynamic> _chapters = [];
   bool _loading = true;
@@ -704,6 +764,7 @@ class _EditStoryPageState extends State<EditStoryPage> {
         : _categories.first;
     _isMature = widget.book.isMature;
     _isCompleted = widget.book.isCompleted;
+    _isDraft = widget.book.isDraft;
     _loadChapters();
   }
 
@@ -770,6 +831,86 @@ class _EditStoryPageState extends State<EditStoryPage> {
       ).showSnackBar(const SnackBar(content: Text('Saved')));
   }
 
+  Future<void> _togglePublish() async {
+    final isDarkMode = themeService.isDarkMode;
+    if (_isDraft) {
+      // Publishing - check if has at least one chapter
+      if (_chapters.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Add at least one chapter before publishing')),
+        );
+        return;
+      }
+      // Confirm publish
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: isDarkMode ? _darkCard : Colors.white,
+          title: Text('Publish Story', style: TextStyle(color: isDarkMode ? _darkText : Colors.black)),
+          content: Text(
+            'Are you sure you want to publish "${_titleController.text}"? It will be visible to all readers.',
+            style: TextStyle(color: isDarkMode ? _darkTextSecondary : Colors.grey.shade700),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text('Cancel', style: TextStyle(color: isDarkMode ? _darkTextSecondary : Colors.grey)),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(backgroundColor: _accentColor),
+              child: const Text('Publish'),
+            ),
+          ],
+        ),
+      );
+      if (confirm == true) {
+        await widget.firestoreService.publishBook(widget.book.id);
+        setState(() => _isDraft = false);
+        widget.onUpdated();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Story published!')),
+          );
+        }
+      }
+    } else {
+      // Unpublishing - confirm
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: isDarkMode ? _darkCard : Colors.white,
+          title: Text('Unpublish Story', style: TextStyle(color: isDarkMode ? _darkText : Colors.black)),
+          content: Text(
+            'Are you sure you want to unpublish "${_titleController.text}"? It will be moved back to drafts.',
+            style: TextStyle(color: isDarkMode ? _darkTextSecondary : Colors.grey.shade700),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text('Cancel', style: TextStyle(color: isDarkMode ? _darkTextSecondary : Colors.grey)),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+              child: const Text('Unpublish'),
+            ),
+          ],
+        ),
+      );
+      if (confirm == true) {
+        await widget.firestoreService.unpublishBook(widget.book.id);
+        setState(() => _isDraft = true);
+        widget.onUpdated();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Story moved to drafts')),
+          );
+        }
+      }
+    }
+  }
+
   void _addPart() {
     Navigator.push(
       context,
@@ -799,19 +940,139 @@ class _EditStoryPageState extends State<EditStoryPage> {
     );
   }
 
+  void _showDeleteStoryDialog() {
+    final isDarkMode = themeService.isDarkMode;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDarkMode ? _darkCard : Colors.white,
+        title: Text(
+          'Delete Story',
+          style: TextStyle(color: isDarkMode ? _darkText : Colors.black),
+        ),
+        content: Text(
+          'Are you sure you want to delete "${widget.book.title}"? This will also delete all chapters and cannot be undone.',
+          style: TextStyle(color: isDarkMode ? _darkTextSecondary : Colors.grey.shade700),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel', style: TextStyle(color: isDarkMode ? _darkTextSecondary : Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await widget.firestoreService.deleteBook(widget.book.id);
+                widget.onUpdated();
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Story deleted')),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error deleting story: $e')),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteChapterDialog(dynamic chapter) {
+    final isDarkMode = themeService.isDarkMode;
+    final title = chapter.title.isEmpty ? 'Part ${chapter.chapterNumber}' : chapter.title;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDarkMode ? _darkCard : Colors.white,
+        title: Text(
+          'Delete Chapter',
+          style: TextStyle(color: isDarkMode ? _darkText : Colors.black),
+        ),
+        content: Text(
+          'Are you sure you want to delete "$title"? This cannot be undone.',
+          style: TextStyle(color: isDarkMode ? _darkTextSecondary : Colors.grey.shade700),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel', style: TextStyle(color: isDarkMode ? _darkTextSecondary : Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await widget.firestoreService.deleteChapter(chapter.id);
+                _loadChapters();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Chapter deleted')),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error deleting chapter: $e')),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = themeService.isDarkMode;
     return Theme(
-      data: ThemeData.dark().copyWith(scaffoldBackgroundColor: _darkBg),
+      data: isDarkMode
+          ? ThemeData.dark().copyWith(scaffoldBackgroundColor: _darkBg)
+          : ThemeData.light().copyWith(scaffoldBackgroundColor: Colors.grey.shade100),
       child: Scaffold(
         appBar: AppBar(
-          backgroundColor: _darkBg,
+          backgroundColor: isDarkMode ? _darkBg : Colors.white,
+          foregroundColor: isDarkMode ? _darkText : Colors.black,
           leading: IconButton(
             icon: const Icon(Icons.close),
             onPressed: () => Navigator.pop(context),
           ),
-          title: const Text('Edit Story'),
+          title: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Edit Story'),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: _isDraft ? Colors.orange.shade700 : _accentColor,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  _isDraft ? 'DRAFT' : 'PUBLISHED',
+                  style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
           actions: [
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.red),
+              onPressed: _showDeleteStoryDialog,
+              tooltip: 'Delete Story',
+            ),
             TextButton(
               onPressed: _save,
               child: const Text('Save', style: TextStyle(color: _accentColor)),
@@ -825,6 +1086,27 @@ class _EditStoryPageState extends State<EditStoryPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Publish/Unpublish button
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _togglePublish,
+                          icon: Icon(_isDraft ? Icons.publish : Icons.unpublished_outlined),
+                          label: Text(_isDraft ? 'Publish Story' : 'Unpublish Story'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _isDraft ? _accentColor : Colors.orange.shade700,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+
                     // Cover
                     Padding(
                       padding: const EdgeInsets.all(16),
@@ -834,9 +1116,9 @@ class _EditStoryPageState extends State<EditStoryPage> {
                           width: 80,
                           height: 110,
                           decoration: BoxDecoration(
-                            color: _darkCard,
+                            color: isDarkMode ? _darkCard : Colors.white,
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.grey.shade700),
+                            border: Border.all(color: isDarkMode ? Colors.grey.shade700 : Colors.grey.shade300),
                           ),
                           child: _newCover != null
                               ? ClipRRect(
@@ -852,18 +1134,18 @@ class _EditStoryPageState extends State<EditStoryPage> {
                                   width: 80,
                                   height: 110,
                                 )
-                              : const Column(
+                              : Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
                                     Icon(
                                       Icons.add_circle_outline,
-                                      color: _darkTextSecondary,
+                                      color: isDarkMode ? _darkTextSecondary : Colors.grey.shade500,
                                     ),
-                                    SizedBox(height: 4),
+                                    const SizedBox(height: 4),
                                     Text(
                                       'Add a cover',
                                       style: TextStyle(
-                                        color: _darkTextSecondary,
+                                        color: isDarkMode ? _darkTextSecondary : Colors.grey.shade500,
                                         fontSize: 10,
                                       ),
                                     ),
@@ -879,14 +1161,14 @@ class _EditStoryPageState extends State<EditStoryPage> {
 
                     // Category
                     ListTile(
-                      title: const Text(
+                      title: Text(
                         'Category *',
-                        style: TextStyle(color: _darkText),
+                        style: TextStyle(color: isDarkMode ? _darkText : Colors.black),
                       ),
                       trailing: DropdownButton<String>(
                         value: _category,
-                        dropdownColor: _darkCard,
-                        style: const TextStyle(color: _darkTextSecondary),
+                        dropdownColor: isDarkMode ? _darkCard : Colors.white,
+                        style: TextStyle(color: isDarkMode ? _darkTextSecondary : Colors.grey.shade700),
                         underline: const SizedBox(),
                         items: _categories
                             .map(
@@ -898,7 +1180,7 @@ class _EditStoryPageState extends State<EditStoryPage> {
                         },
                       ),
                     ),
-                    Divider(color: Colors.grey.shade800, height: 1),
+                    Divider(color: isDarkMode ? Colors.grey.shade800 : Colors.grey.shade300, height: 1),
 
                     _buildField(
                       'Tags',
@@ -908,14 +1190,14 @@ class _EditStoryPageState extends State<EditStoryPage> {
 
                     // Mature toggle
                     SwitchListTile(
-                      title: const Text(
+                      title: Text(
                         'Mature',
-                        style: TextStyle(color: _darkText),
+                        style: TextStyle(color: isDarkMode ? _darkText : Colors.black),
                       ),
-                      subtitle: const Text(
+                      subtitle: Text(
                         'Your story is appropriate for all audiences.',
                         style: TextStyle(
-                          color: _darkTextSecondary,
+                          color: isDarkMode ? _darkTextSecondary : Colors.grey.shade600,
                           fontSize: 12,
                         ),
                       ),
@@ -923,23 +1205,23 @@ class _EditStoryPageState extends State<EditStoryPage> {
                       activeColor: _accentColor,
                       onChanged: (v) => setState(() => _isMature = v),
                     ),
-                    Divider(color: Colors.grey.shade800, height: 1),
+                    Divider(color: isDarkMode ? Colors.grey.shade800 : Colors.grey.shade300, height: 1),
 
                     // Completed toggle
                     SwitchListTile(
-                      title: const Text(
+                      title: Text(
                         'Completed',
-                        style: TextStyle(color: _darkText),
+                        style: TextStyle(color: isDarkMode ? _darkText : Colors.black),
                       ),
                       value: _isCompleted,
                       activeColor: _accentColor,
                       onChanged: (v) => setState(() => _isCompleted = v),
                     ),
-                    Divider(color: Colors.grey.shade800, height: 1),
+                    Divider(color: isDarkMode ? Colors.grey.shade800 : Colors.grey.shade300, height: 1),
 
                     // Table of contents
                     Container(
-                      color: Colors.grey.shade900,
+                      color: isDarkMode ? Colors.grey.shade900 : Colors.grey.shade200,
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
                         vertical: 12,
@@ -947,16 +1229,16 @@ class _EditStoryPageState extends State<EditStoryPage> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
+                          Text(
                             'Table of contents',
                             style: TextStyle(
-                              color: _darkText,
+                              color: isDarkMode ? _darkText : Colors.black,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
                           Icon(
                             Icons.settings,
-                            color: _darkTextSecondary,
+                            color: isDarkMode ? _darkTextSecondary : Colors.grey.shade600,
                             size: 20,
                           ),
                         ],
@@ -965,11 +1247,11 @@ class _EditStoryPageState extends State<EditStoryPage> {
 
                     // Chapters list
                     if (_chapters.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.all(16),
+                      Padding(
+                        padding: const EdgeInsets.all(16),
                         child: Text(
                           'No parts yet',
-                          style: TextStyle(color: _darkTextSecondary),
+                          style: TextStyle(color: isDarkMode ? _darkTextSecondary : Colors.grey.shade600),
                         ),
                       )
                     else
@@ -979,18 +1261,28 @@ class _EditStoryPageState extends State<EditStoryPage> {
                             ch.title.isEmpty
                                 ? 'Part ${ch.chapterNumber}'
                                 : ch.title,
-                            style: const TextStyle(color: _darkText),
+                            style: TextStyle(color: isDarkMode ? _darkText : Colors.black),
                           ),
                           subtitle: Text(
                             'Part ${ch.chapterNumber}',
-                            style: const TextStyle(
-                              color: _darkTextSecondary,
+                            style: TextStyle(
+                              color: isDarkMode ? _darkTextSecondary : Colors.grey.shade600,
                               fontSize: 12,
                             ),
                           ),
-                          trailing: const Icon(
-                            Icons.chevron_right,
-                            color: _darkTextSecondary,
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: Icon(Icons.delete_outline, color: Colors.red.shade400, size: 20),
+                                onPressed: () => _showDeleteChapterDialog(ch),
+                                tooltip: 'Delete chapter',
+                              ),
+                              Icon(
+                                Icons.chevron_right,
+                                color: isDarkMode ? _darkTextSecondary : Colors.grey.shade600,
+                              ),
+                            ],
                           ),
                           onTap: () => _editPart(ch),
                         ),
@@ -1008,8 +1300,8 @@ class _EditStoryPageState extends State<EditStoryPage> {
               icon: const Icon(Icons.add),
               label: const Text('Add a Part'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: _darkCard,
-                foregroundColor: _darkText,
+                backgroundColor: isDarkMode ? _darkCard : Colors.white,
+                foregroundColor: isDarkMode ? _darkText : Colors.black,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(24),
@@ -1028,14 +1320,15 @@ class _EditStoryPageState extends State<EditStoryPage> {
     int maxLines = 1,
     String? hint,
   }) {
+    final isDarkMode = themeService.isDarkMode;
     return Column(
       children: [
         ListTile(
-          title: Text(label, style: const TextStyle(color: _darkText)),
-          trailing: const Icon(Icons.chevron_right, color: _darkTextSecondary),
+          title: Text(label, style: TextStyle(color: isDarkMode ? _darkText : Colors.black)),
+          trailing: Icon(Icons.chevron_right, color: isDarkMode ? _darkTextSecondary : Colors.grey.shade600),
           onTap: () => _showFieldEditor(label, controller, maxLines: maxLines),
         ),
-        Divider(color: Colors.grey.shade800, height: 1),
+        Divider(color: isDarkMode ? Colors.grey.shade800 : Colors.grey.shade300, height: 1),
       ],
     );
   }
@@ -1045,10 +1338,11 @@ class _EditStoryPageState extends State<EditStoryPage> {
     TextEditingController controller, {
     int maxLines = 1,
   }) {
+    final isDarkMode = themeService.isDarkMode;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: _darkBg,
+      backgroundColor: isDarkMode ? _darkBg : Colors.white,
       builder: (ctx) => Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
         child: Container(
@@ -1059,8 +1353,8 @@ class _EditStoryPageState extends State<EditStoryPage> {
             children: [
               Text(
                 label,
-                style: const TextStyle(
-                  color: _darkText,
+                style: TextStyle(
+                  color: isDarkMode ? _darkText : Colors.black,
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
@@ -1070,10 +1364,10 @@ class _EditStoryPageState extends State<EditStoryPage> {
                 controller: controller,
                 autofocus: true,
                 maxLines: maxLines,
-                style: const TextStyle(color: _darkText),
+                style: TextStyle(color: isDarkMode ? _darkText : Colors.black),
                 decoration: InputDecoration(
                   filled: true,
-                  fillColor: _darkCard,
+                  fillColor: isDarkMode ? _darkCard : Colors.grey.shade100,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                     borderSide: BorderSide.none,
@@ -1237,9 +1531,10 @@ class _PartEditorPageState extends State<PartEditorPage> {
   void _toggleUnderline() => _toggleFormat('<u>', '</u>');
 
   // Parse text and build formatted TextSpans
-  List<TextSpan> _buildFormattedText(String text) {
+  List<TextSpan> _buildFormattedText(String text, bool isDarkMode) {
     final List<TextSpan> spans = [];
     final RegExp pattern = RegExp(r'\*\*(.+?)\*\*|_(.+?)_|<u>(.+?)</u>');
+    final textColor = isDarkMode ? _darkText : Colors.black;
     
     int lastEnd = 0;
     for (final match in pattern.allMatches(text)) {
@@ -1253,19 +1548,19 @@ class _PartEditorPageState extends State<PartEditorPage> {
         // Bold **text**
         spans.add(TextSpan(
           text: match.group(1),
-          style: const TextStyle(fontWeight: FontWeight.bold, color: _darkText),
+          style: TextStyle(fontWeight: FontWeight.bold, color: textColor),
         ));
       } else if (match.group(2) != null) {
         // Italic _text_
         spans.add(TextSpan(
           text: match.group(2),
-          style: const TextStyle(fontStyle: FontStyle.italic, color: _darkText),
+          style: TextStyle(fontStyle: FontStyle.italic, color: textColor),
         ));
       } else if (match.group(3) != null) {
         // Underline <u>text</u>
         spans.add(TextSpan(
           text: match.group(3),
-          style: const TextStyle(decoration: TextDecoration.underline, color: _darkText),
+          style: TextStyle(decoration: TextDecoration.underline, color: textColor),
         ));
       }
       
@@ -1282,19 +1577,23 @@ class _PartEditorPageState extends State<PartEditorPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = themeService.isDarkMode;
     return Theme(
-      data: ThemeData.dark().copyWith(scaffoldBackgroundColor: _darkBg),
+      data: isDarkMode
+          ? ThemeData.dark().copyWith(scaffoldBackgroundColor: _darkBg)
+          : ThemeData.light().copyWith(scaffoldBackgroundColor: Colors.grey.shade100),
       child: Scaffold(
         appBar: AppBar(
-          backgroundColor: _darkBg,
+          backgroundColor: isDarkMode ? _darkBg : Colors.white,
+          foregroundColor: isDarkMode ? _darkText : Colors.black,
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () => Navigator.pop(context),
           ),
           title: DropdownButton<int>(
             value: widget.chapterNumber,
-            dropdownColor: _darkCard,
-            style: const TextStyle(color: _darkText),
+            dropdownColor: isDarkMode ? _darkCard : Colors.white,
+            style: TextStyle(color: isDarkMode ? _darkText : Colors.black),
             underline: const SizedBox(),
             items: [
               DropdownMenuItem(
@@ -1310,7 +1609,9 @@ class _PartEditorPageState extends State<PartEditorPage> {
               child: Text(
                 'Publish',
                 style: TextStyle(
-                  color: _saving ? _darkTextSecondary : _darkText,
+                  color: _saving 
+                      ? (isDarkMode ? _darkTextSecondary : Colors.grey) 
+                      : (isDarkMode ? _darkText : Colors.black),
                 ),
               ),
             ),
@@ -1322,8 +1623,8 @@ class _PartEditorPageState extends State<PartEditorPage> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: _darkCard,
-                border: Border(bottom: BorderSide(color: Colors.grey.shade800)),
+                color: isDarkMode ? _darkCard : Colors.white,
+                border: Border(bottom: BorderSide(color: isDarkMode ? Colors.grey.shade800 : Colors.grey.shade300)),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -1332,18 +1633,21 @@ class _PartEditorPageState extends State<PartEditorPage> {
                     icon: Icons.format_bold,
                     tooltip: 'Bold',
                     onPressed: _toggleBold,
+                    isDarkMode: isDarkMode,
                   ),
                   const SizedBox(width: 16),
                   _FormatButton(
                     icon: Icons.format_italic,
                     tooltip: 'Italic',
                     onPressed: _toggleItalic,
+                    isDarkMode: isDarkMode,
                   ),
                   const SizedBox(width: 16),
                   _FormatButton(
                     icon: Icons.format_underline,
                     tooltip: 'Underline',
                     onPressed: _toggleUnderline,
+                    isDarkMode: isDarkMode,
                   ),
                 ],
               ),
@@ -1356,7 +1660,7 @@ class _PartEditorPageState extends State<PartEditorPage> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade600,
+                  color: isDarkMode ? Colors.grey.shade600 : Colors.grey.shade400,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -1370,19 +1674,19 @@ class _PartEditorPageState extends State<PartEditorPage> {
                     // Title
                     TextField(
                       controller: _titleController,
-                      style: const TextStyle(
-                        color: _darkText,
+                      style: TextStyle(
+                        color: isDarkMode ? _darkText : Colors.black,
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
                       ),
                       textAlign: TextAlign.center,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         hintText: 'Part title',
-                        hintStyle: TextStyle(color: Color(0xFF555555)),
+                        hintStyle: TextStyle(color: isDarkMode ? const Color(0xFF555555) : Colors.grey.shade500),
                         border: InputBorder.none,
                       ),
                     ),
-                    Divider(color: Colors.grey.shade800),
+                    Divider(color: isDarkMode ? Colors.grey.shade800 : Colors.grey.shade300),
                     
                     const SizedBox(height: 16),
                     
@@ -1394,22 +1698,22 @@ class _PartEditorPageState extends State<PartEditorPage> {
                         constraints: const BoxConstraints(minHeight: 300),
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: _darkCard,
+                          color: isDarkMode ? _darkCard : Colors.white,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey.shade700),
+                          border: Border.all(color: isDarkMode ? Colors.grey.shade700 : Colors.grey.shade300),
                         ),
                         child: _contentController.text.isEmpty
-                            ? const Center(
+                            ? Center(
                                 child: Text(
                                   'Tap here to write your story...',
-                                  style: TextStyle(color: Color(0xFF555555), fontSize: 16),
+                                  style: TextStyle(color: isDarkMode ? const Color(0xFF555555) : Colors.grey.shade500, fontSize: 16),
                                 ),
                               )
                             : RichText(
                                 textAlign: TextAlign.left,
                                 text: TextSpan(
-                                  style: const TextStyle(color: _darkText, fontSize: 16, height: 1.6),
-                                  children: _buildFormattedText(_contentController.text),
+                                  style: TextStyle(color: isDarkMode ? _darkText : Colors.black, fontSize: 16, height: 1.6),
+                                  children: _buildFormattedText(_contentController.text, isDarkMode),
                                 ),
                               ),
                       ),
@@ -1425,10 +1729,11 @@ class _PartEditorPageState extends State<PartEditorPage> {
   }
 
   void _showContentEditor() {
+    final isDarkMode = themeService.isDarkMode;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: _darkBg,
+      backgroundColor: isDarkMode ? _darkBg : Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -1447,11 +1752,11 @@ class _PartEditorPageState extends State<PartEditorPage> {
               children: [
                 Row(
                   children: [
-                    _FormatButton(icon: Icons.format_bold, tooltip: 'Bold', onPressed: () { _toggleBold(); Navigator.pop(ctx); _showContentEditor(); }),
+                    _FormatButton(icon: Icons.format_bold, tooltip: 'Bold', onPressed: () { _toggleBold(); Navigator.pop(ctx); _showContentEditor(); }, isDarkMode: isDarkMode),
                     const SizedBox(width: 8),
-                    _FormatButton(icon: Icons.format_italic, tooltip: 'Italic', onPressed: () { _toggleItalic(); Navigator.pop(ctx); _showContentEditor(); }),
+                    _FormatButton(icon: Icons.format_italic, tooltip: 'Italic', onPressed: () { _toggleItalic(); Navigator.pop(ctx); _showContentEditor(); }, isDarkMode: isDarkMode),
                     const SizedBox(width: 8),
-                    _FormatButton(icon: Icons.format_underline, tooltip: 'Underline', onPressed: () { _toggleUnderline(); Navigator.pop(ctx); _showContentEditor(); }),
+                    _FormatButton(icon: Icons.format_underline, tooltip: 'Underline', onPressed: () { _toggleUnderline(); Navigator.pop(ctx); _showContentEditor(); }, isDarkMode: isDarkMode),
                   ],
                 ),
                 TextButton(
@@ -1468,12 +1773,12 @@ class _PartEditorPageState extends State<PartEditorPage> {
               controller: _contentController,
               autofocus: true,
               maxLines: 12,
-              style: const TextStyle(color: _darkText, fontSize: 16),
+              style: TextStyle(color: isDarkMode ? _darkText : Colors.black, fontSize: 16),
               decoration: InputDecoration(
                 hintText: 'Write your story here...',
-                hintStyle: const TextStyle(color: Color(0xFF555555)),
+                hintStyle: TextStyle(color: isDarkMode ? const Color(0xFF555555) : Colors.grey.shade500),
                 filled: true,
-                fillColor: _darkCard,
+                fillColor: isDarkMode ? _darkCard : Colors.grey.shade100,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                   borderSide: BorderSide.none,
@@ -1493,11 +1798,13 @@ class _FormatButton extends StatelessWidget {
   final IconData icon;
   final String tooltip;
   final VoidCallback onPressed;
+  final bool isDarkMode;
 
   const _FormatButton({
     required this.icon,
     required this.tooltip,
     required this.onPressed,
+    this.isDarkMode = true,
   });
 
   @override
@@ -1510,10 +1817,10 @@ class _FormatButton extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: Colors.grey.shade800,
+            color: isDarkMode ? Colors.grey.shade800 : Colors.grey.shade200,
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Icon(icon, color: _darkText, size: 22),
+          child: Icon(icon, color: isDarkMode ? _darkText : Colors.black, size: 22),
         ),
       ),
     );
