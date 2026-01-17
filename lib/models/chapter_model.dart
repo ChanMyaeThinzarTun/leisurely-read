@@ -7,6 +7,7 @@ class ChapterModel {
   final String title;
   final String content;
   final List<String>? imageUrls;
+  final bool isDraft;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -17,6 +18,7 @@ class ChapterModel {
     required this.title,
     required this.content,
     this.imageUrls,
+    this.isDraft = false,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -28,6 +30,7 @@ class ChapterModel {
     'title': title,
     'content': content,
     'imageUrls': imageUrls,
+    'isDraft': isDraft,
     'createdAt': createdAt,
     'updatedAt': updatedAt,
   };
@@ -40,6 +43,7 @@ class ChapterModel {
         title: data['title'] ?? '',
         content: data['content'] ?? '',
         imageUrls: List<String>.from(data['imageUrls'] ?? []),
+        isDraft: data['isDraft'] ?? false,
         createdAt: data['createdAt'] != null
             ? (data['createdAt'] as Timestamp).toDate()
             : DateTime.now(),

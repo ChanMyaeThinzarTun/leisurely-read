@@ -1,12 +1,100 @@
+// Writer home screen: Wattpad-style UI
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:image/image.dart' as img;
+import 'package:image_picker/image_picker.dart';
+
+import '../models/book_model.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
-import '../models/book_model.dart';
-import '../models/chapter_model.dart';
 
+const List<String> _categories = [
+  'Fiction',
+  'Non-Fiction',
+  'Romance',
+  'Fantasy',
+  'Mystery',
+  'Thriller',
+  'Sci-Fi',
+  'Horror',
+  'Adventure',
+  'Poetry',
+  'Other',
+];
+
+// Dark theme colors
+const _darkBg = Color(0xFF121212);
+const _darkCard = Color(0xFF1E1E1E);
+const _darkText = Colors.white;
+const _darkTextSecondary = Color(0xFFAAAAAA);
+const _accentColor = Color(0xFFFF6B00);
+
+Widget _buildBookCover(
+  String coverImageUrl, {
+  double? width,
+  double? height,
+  BoxFit? fit,
+}) {
+  if (coverImageUrl.isEmpty) {
+    return Container(
+      width: width ?? 80,
+      height: height ?? 110,
+      decoration: BoxDecoration(
+        color: Colors.grey.shade800,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: const Icon(Icons.book, size: 32, color: Colors.white54),
+    );
+  }
+  try {
+    if (coverImageUrl.startsWith('data:')) {
+      final uri = Uri.parse(coverImageUrl);
+      final data = uri.data;
+      if (data != null) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: Image.memory(
+            data.contentAsBytes(),
+            width: width,
+            height: height,
+            fit: fit ?? BoxFit.cover,
+          ),
+        );
+      }
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(4),
+      child: Image.network(
+        coverImageUrl,
+        width: width,
+        height: height,
+        fit: fit ?? BoxFit.cover,
+        errorBuilder: (_, __, ___) => Container(
+          width: width ?? 80,
+          height: height ?? 110,
+          color: Colors.grey.shade800,
+          child: const Icon(Icons.broken_image, color: Colors.white54),
+        ),
+      ),
+    );
+  } catch (_) {
+    return Container(
+      width: width ?? 80,
+      height: height ?? 110,
+      decoration: BoxDecoration(
+        color: Colors.grey.shade800,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: const Icon(Icons.broken_image, size: 32, color: Colors.white54),
+    );
+  }
+}
+
+// ==================== WRITER HOME ====================
 class WriterHome extends StatefulWidget {
-  const WriterHome({super.key});
-
+  const WriterHome({Key? key}) : super(key: key);
   @override
   State<WriterHome> createState() => _WriterHomeState();
 }
@@ -14,492 +102,1427 @@ class WriterHome extends StatefulWidget {
 class _WriterHomeState extends State<WriterHome> {
   final AuthService authService = AuthService();
   final FirestoreService firestoreService = FirestoreService();
-
-  void logout() async {
-    await authService.logout();
-    if (mounted) {
-      Navigator.pushReplacementNamed(context, '/login');
-    }
-  }
-
-  void changePassword() {
-    showDialog(
-      context: context,
-      builder: (context) => _ChangePasswordDialog(authService: authService),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final currentUser = authService.getCurrentUser();
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Writer Dashboard'),
-        actions: [
-          IconButton(icon: const Icon(Icons.lock), onPressed: changePassword),
-          IconButton(icon: const Icon(Icons.logout), onPressed: logout),
-        ],
-      ),
-      body: FutureBuilder<List<BookModel>>(
-        future: firestoreService.getBooksByWriter(currentUser!.uid),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final books = snapshot.data ?? [];
-          return ListView(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'My Books',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    const SizedBox(height: 16),
-                    if (books.isEmpty)
-                      const Center(
-                        child: Text('No books yet. Create one to get started!'),
-                      )
-                    else
-                      GridView.builder(
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
-                              crossAxisSpacing: 8,
-                              mainAxisSpacing: 8,
-                              childAspectRatio: 0.7,
-                            ),
-                        itemCount: books.length,
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemBuilder: (context, index) {
-                          final book = books[index];
-                          return _BookCard(
-                            book: book,
-                            firestoreService: firestoreService,
-                            onRefresh: () => setState(() {}),
-                          );
-                        },
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showCreateBookDialog(context),
-        child: const Icon(Icons.add),
-      ),
-    );
-  }
-
-  void _showCreateBookDialog(BuildContext context) {
-    final titleController = TextEditingController();
-    final coverUrlController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Create Book'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: titleController,
-              decoration: const InputDecoration(labelText: 'Book Title'),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: coverUrlController,
-              decoration: const InputDecoration(
-                labelText: 'Cover Image URL',
-                hintText: 'https://example.com/cover.jpg',
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (titleController.text.isEmpty ||
-                  coverUrlController.text.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Please fill all fields')),
-                );
-                return;
-              }
-
-              final currentUser = authService.getCurrentUser();
-              await firestoreService.createBook(
-                currentUser!.uid,
-                titleController.text,
-                coverUrlController.text,
-              );
-
-              if (mounted) {
-                Navigator.pop(context);
-                setState(() {});
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Book created successfully')),
-                );
-              }
-            },
-            child: const Text('Create'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _BookCard extends StatelessWidget {
-  final BookModel book;
-  final FirestoreService firestoreService;
-  final VoidCallback onRefresh;
-
-  const _BookCard({
-    required this.book,
-    required this.firestoreService,
-    required this.onRefresh,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => _BookDetailScreen(
-            book: book,
-            firestoreService: firestoreService,
-            onRefresh: onRefresh,
-          ),
-        ),
-      ),
-      child: Card(
-        elevation: 4,
-        child: Column(
-          children: [
-            Expanded(
-              child: Image.network(
-                book.coverImageUrl,
-                width: double.infinity,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => Container(
-                  color: Colors.grey[300],
-                  child: const Icon(Icons.book),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    book.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _BookDetailScreen extends StatefulWidget {
-  final BookModel book;
-  final FirestoreService firestoreService;
-  final VoidCallback onRefresh;
-
-  const _BookDetailScreen({
-    required this.book,
-    required this.firestoreService,
-    required this.onRefresh,
-  });
-
-  @override
-  State<_BookDetailScreen> createState() => _BookDetailScreenState();
-}
-
-class _BookDetailScreenState extends State<_BookDetailScreen> {
-  late Future<List<ChapterModel>> chapters;
+  BookModel? _currentBook;
+  List<BookModel> _allBooks = [];
+  bool _loading = true;
 
   @override
   void initState() {
     super.initState();
-    chapters = widget.firestoreService.getChaptersByBook(widget.book.id);
+    _loadBooks();
   }
 
-  void refreshChapters() {
-    setState(() {
-      chapters = widget.firestoreService.getChaptersByBook(widget.book.id);
-    });
+  Future<void> _loadBooks() async {
+    final user = authService.getCurrentUser();
+    if (user == null) return;
+    final books = await firestoreService.getBooksByWriter(user.uid);
+    if (mounted) {
+      setState(() {
+        _allBooks = books;
+        _currentBook = books.isNotEmpty ? books.first : null;
+        _loading = false;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(widget.book.title)),
-      body: FutureBuilder<List<ChapterModel>>(
-        future: chapters,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+    final user = authService.getCurrentUser();
+    return Theme(
+      data: ThemeData.dark().copyWith(
+        scaffoldBackgroundColor: _darkBg,
+        appBarTheme: const AppBarTheme(backgroundColor: _darkBg, elevation: 0),
+      ),
+      child: Scaffold(
+        body: SafeArea(
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Write',
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              color: _darkText,
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    ProfilePage(authService: authService),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Text(
+                                  '@${user?.displayName ?? user?.email?.split('@').first ?? 'User'}',
+                                  style: const TextStyle(
+                                    color: _darkTextSecondary,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                CircleAvatar(
+                                  radius: 16,
+                                  backgroundColor: Colors.grey.shade700,
+                                  child: const Icon(
+                                    Icons.person,
+                                    size: 20,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
 
-          final chapterList = snapshot.data ?? [];
-          return ListView(
-            padding: const EdgeInsets.all(16),
+                    // Current Book Card
+                    if (_currentBook != null)
+                      GestureDetector(
+                        onTap: () => _openEditStory(_currentBook!),
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: _darkCard,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            children: [
+                              _buildBookCover(
+                                _currentBook!.coverImageUrl,
+                                width: 60,
+                                height: 85,
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Continue writing',
+                                      style: TextStyle(
+                                        color: _darkTextSecondary,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      _currentBook!.title,
+                                      style: const TextStyle(
+                                        color: _darkText,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    FutureBuilder(
+                                      future: firestoreService
+                                          .getChaptersByBook(_currentBook!.id),
+                                      builder: (context, snapshot) {
+                                        final count =
+                                            snapshot.data?.length ?? 0;
+                                        return Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: _accentColor,
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            '$count published parts',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Icon(
+                                Icons.chevron_right,
+                                color: _darkTextSecondary,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                    const SizedBox(height: 16),
+
+                    // Edit another story
+                    ListTile(
+                      leading: const Icon(
+                        Icons.edit_note,
+                        color: _darkText,
+                        size: 28,
+                      ),
+                      title: const Text(
+                        'Edit another story',
+                        style: TextStyle(color: _darkText),
+                      ),
+                      onTap: () => _showStoryPicker(),
+                    ),
+
+                    // Create new story
+                    ListTile(
+                      leading: const Icon(
+                        Icons.add_box_outlined,
+                        color: _darkText,
+                        size: 28,
+                      ),
+                      title: const Text(
+                        'Create new story',
+                        style: TextStyle(color: _darkText),
+                      ),
+                      onTap: () => _openCreateStory(),
+                    ),
+
+                    const Spacer(),
+
+                    // Logout
+                    ListTile(
+                      leading: const Icon(
+                        Icons.logout,
+                        color: _darkTextSecondary,
+                      ),
+                      title: const Text(
+                        'Logout',
+                        style: TextStyle(color: _darkTextSecondary),
+                      ),
+                      onTap: () async {
+                        await authService.logout();
+                        if (mounted)
+                          Navigator.pushReplacementNamed(context, '/login');
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
+
+  void _showStoryPicker() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: _darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => ListView(
+        shrinkWrap: true,
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text(
+              'Select a story',
+              style: TextStyle(
+                color: _darkText,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          ..._allBooks.map(
+            (book) => ListTile(
+              leading: _buildBookCover(
+                book.coverImageUrl,
+                width: 40,
+                height: 55,
+              ),
+              title: Text(book.title, style: const TextStyle(color: _darkText)),
+              subtitle: Text(
+                book.category,
+                style: const TextStyle(color: _darkTextSecondary),
+              ),
+              onTap: () {
+                Navigator.pop(ctx);
+                _openEditStory(book);
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openCreateStory() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CreateStoryPage(
+          authService: authService,
+          firestoreService: firestoreService,
+          onCreated: (book) {
+            _loadBooks();
+            _openEditStory(book);
+          },
+        ),
+      ),
+    );
+  }
+
+  void _openEditStory(BookModel book) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EditStoryPage(
+          book: book,
+          firestoreService: firestoreService,
+          onUpdated: () => _loadBooks(),
+        ),
+      ),
+    );
+  }
+}
+
+// ==================== CREATE STORY PAGE ====================
+class CreateStoryPage extends StatefulWidget {
+  final AuthService authService;
+  final FirestoreService firestoreService;
+  final Function(BookModel) onCreated;
+
+  const CreateStoryPage({
+    Key? key,
+    required this.authService,
+    required this.firestoreService,
+    required this.onCreated,
+  }) : super(key: key);
+  @override
+  State<CreateStoryPage> createState() => _CreateStoryPageState();
+}
+
+class _CreateStoryPageState extends State<CreateStoryPage> {
+  final _titleController = TextEditingController();
+  final _descController = TextEditingController();
+  Uint8List? _coverImage;
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickCover() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: ImageSource.gallery);
+    if (picked != null) {
+      final bytes = await picked.readAsBytes();
+      setState(() => _coverImage = bytes);
+    }
+  }
+
+  Future<void> _save() async {
+    if (_titleController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Title is required')));
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      final user = widget.authService.getCurrentUser();
+      if (user == null) throw Exception('Not signed in');
+
+      String coverData = '';
+      if (_coverImage != null) {
+        final original = img.decodeImage(_coverImage!);
+        if (original != null) {
+          final resized = img.copyResize(original, width: 400);
+          final bytes = Uint8List.fromList(img.encodeJpg(resized, quality: 60));
+          coverData = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+        }
+      }
+
+      final bookId = await widget.firestoreService.createBook(
+        user.uid,
+        _titleController.text.trim(),
+        coverData,
+        description: _descController.text.trim(),
+        category: 'Fiction',
+        tags: [],
+        isMature: false,
+        isCompleted: false,
+        isDraft: true,
+      );
+
+      // Fetch the created book
+      final books = await widget.firestoreService.getBooksByWriter(user.uid);
+      final createdBook = books.firstWhere(
+        (b) => b.id == bookId,
+        orElse: () => books.first,
+      );
+
+      if (mounted) {
+        Navigator.pop(context);
+        widget.onCreated(createdBook);
+      }
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Theme(
+      data: ThemeData.dark().copyWith(scaffoldBackgroundColor: _darkBg),
+      child: Scaffold(
+        appBar: AppBar(
+          backgroundColor: _darkBg,
+          leading: IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: const Text('Add Story Info'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                'Skip',
+                style: TextStyle(color: _darkTextSecondary),
+              ),
+            ),
+          ],
+        ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Image.network(
-                widget.book.coverImageUrl,
-                height: 200,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => Container(
-                  height: 200,
-                  color: Colors.grey[300],
-                  child: const Icon(Icons.book),
+              // Cover picker
+              GestureDetector(
+                onTap: _pickCover,
+                child: Container(
+                  width: 80,
+                  height: 110,
+                  decoration: BoxDecoration(
+                    color: _darkCard,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.shade700),
+                  ),
+                  child: _coverImage != null
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.memory(_coverImage!, fit: BoxFit.cover),
+                        )
+                      : const Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.add_circle_outline,
+                              color: _darkTextSecondary,
+                              size: 24,
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              'Add a cover',
+                              style: TextStyle(
+                                color: _darkTextSecondary,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ],
+                        ),
                 ),
               ),
               const SizedBox(height: 24),
-              Text(
-                'Chapters (${chapterList.length})',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 16),
-              if (chapterList.isEmpty)
-                const Center(child: Text('No chapters yet'))
-              else
-                ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: chapterList.length,
-                  itemBuilder: (context, index) {
-                    final chapter = chapterList[index];
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      child: ListTile(
-                        title: Text(
-                          'Chapter ${chapter.chapterNumber}: ${chapter.title}',
-                        ),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.red),
-                          onPressed: () async {
-                            final confirmed = await showDialog<bool>(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                title: const Text('Delete Chapter'),
-                                content: const Text('Are you sure?'),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () =>
-                                        Navigator.pop(context, false),
-                                    child: const Text('Cancel'),
-                                  ),
-                                  TextButton(
-                                    onPressed: () =>
-                                        Navigator.pop(context, true),
-                                    child: const Text('Delete'),
-                                  ),
-                                ],
-                              ),
-                            );
-                            if (confirmed == true) {
-                              await widget.firestoreService.deleteChapter(
-                                chapter.id,
-                              );
-                              refreshChapters();
-                            }
-                          },
-                        ),
-                      ),
-                    );
-                  },
-                ),
-            ],
-          );
-        },
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showCreateChapterDialog(context),
-        child: const Icon(Icons.add),
-      ),
-    );
-  }
 
-  void _showCreateChapterDialog(BuildContext context) {
-    final chapterNumberController = TextEditingController();
-    final titleController = TextEditingController();
-    final contentController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Add Chapter'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
+              // Title
               TextField(
-                controller: chapterNumberController,
-                decoration: const InputDecoration(labelText: 'Chapter Number'),
-                keyboardType: TextInputType.number,
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: titleController,
-                decoration: const InputDecoration(labelText: 'Chapter Title'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: contentController,
+                controller: _titleController,
+                style: const TextStyle(color: _darkText),
                 decoration: const InputDecoration(
-                  labelText: 'Chapter Content',
-                  hintText: 'Write your chapter here...',
+                  hintText: 'Story Title',
+                  hintStyle: TextStyle(color: _darkTextSecondary),
+                  border: InputBorder.none,
                 ),
-                maxLines: 6,
+              ),
+              Divider(color: Colors.grey.shade800),
+
+              // Description
+              TextField(
+                controller: _descController,
+                style: const TextStyle(color: _darkText),
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  hintText: 'Give a description of your story',
+                  hintStyle: TextStyle(color: _darkTextSecondary),
+                  border: InputBorder.none,
+                ),
+              ),
+
+              const SizedBox(height: 32),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _saving ? null : _save,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _accentColor,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: _saving
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text('Create Story'),
+                ),
               ),
             ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (chapterNumberController.text.isEmpty ||
-                  titleController.text.isEmpty ||
-                  contentController.text.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Please fill all fields')),
-                );
-                return;
-              }
-
-              await widget.firestoreService.createChapter(
-                widget.book.id,
-                int.parse(chapterNumberController.text),
-                titleController.text,
-                contentController.text,
-              );
-
-              if (mounted) {
-                Navigator.pop(context);
-                refreshChapters();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Chapter created successfully')),
-                );
-              }
-            },
-            child: const Text('Create'),
-          ),
-        ],
       ),
     );
   }
 }
 
-class _ChangePasswordDialog extends StatefulWidget {
-  final AuthService authService;
-  const _ChangePasswordDialog({required this.authService});
+// ==================== EDIT STORY PAGE ====================
+class EditStoryPage extends StatefulWidget {
+  final BookModel book;
+  final FirestoreService firestoreService;
+  final VoidCallback onUpdated;
 
+  const EditStoryPage({
+    Key? key,
+    required this.book,
+    required this.firestoreService,
+    required this.onUpdated,
+  }) : super(key: key);
   @override
-  State<_ChangePasswordDialog> createState() => _ChangePasswordDialogState();
+  State<EditStoryPage> createState() => _EditStoryPageState();
 }
 
-class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
-  final TextEditingController newPasswordController = TextEditingController();
-  final TextEditingController confirmPasswordController =
-      TextEditingController();
-  bool loading = false;
-
-  void changePassword() async {
-    if (newPasswordController.text != confirmPasswordController.text) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Passwords do not match')));
-      return;
-    }
-
-    setState(() => loading = true);
-    try {
-      await widget.authService.changePassword(newPasswordController.text);
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Password changed successfully')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.toString())));
-      }
-    } finally {
-      if (mounted) {
-        setState(() => loading = false);
-      }
-    }
-  }
+class _EditStoryPageState extends State<EditStoryPage> {
+  late TextEditingController _titleController;
+  late TextEditingController _descController;
+  late TextEditingController _tagsController;
+  late String _category;
+  late bool _isMature;
+  late bool _isCompleted;
+  Uint8List? _newCover;
+  List<dynamic> _chapters = [];
+  bool _loading = true;
 
   @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Change Password'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: newPasswordController,
-            decoration: const InputDecoration(labelText: 'New Password'),
-            obscureText: true,
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: confirmPasswordController,
-            decoration: const InputDecoration(labelText: 'Confirm Password'),
-            obscureText: true,
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        ElevatedButton(
-          onPressed: loading ? null : changePassword,
-          child: loading
-              ? const CircularProgressIndicator()
-              : const Text('Change'),
-        ),
-      ],
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: widget.book.title);
+    _descController = TextEditingController(text: widget.book.description);
+    _tagsController = TextEditingController(text: widget.book.tags.join(', '));
+    _category = widget.book.category.isNotEmpty
+        ? widget.book.category
+        : _categories.first;
+    _isMature = widget.book.isMature;
+    _isCompleted = widget.book.isCompleted;
+    _loadChapters();
+  }
+
+  Future<void> _loadChapters() async {
+    final chapters = await widget.firestoreService.getChaptersByBook(
+      widget.book.id,
     );
+    if (mounted)
+      setState(() {
+        _chapters = chapters;
+        _loading = false;
+      });
   }
 
   @override
   void dispose() {
-    newPasswordController.dispose();
-    confirmPasswordController.dispose();
+    _titleController.dispose();
+    _descController.dispose();
+    _tagsController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickCover() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: ImageSource.gallery);
+    if (picked != null) {
+      final bytes = await picked.readAsBytes();
+      setState(() => _newCover = bytes);
+    }
+  }
+
+  Future<void> _save() async {
+    String? coverData;
+    if (_newCover != null) {
+      final original = img.decodeImage(_newCover!);
+      if (original != null) {
+        final resized = img.copyResize(original, width: 400);
+        final bytes = Uint8List.fromList(img.encodeJpg(resized, quality: 60));
+        coverData = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+      }
+    }
+
+    final tags = _tagsController.text
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+
+    await widget.firestoreService.updateBookDetails(
+      widget.book.id,
+      title: _titleController.text.trim(),
+      description: _descController.text.trim(),
+      category: _category,
+      tags: tags,
+      isMature: _isMature,
+      isCompleted: _isCompleted,
+      coverImageUrl: coverData,
+    );
+
+    widget.onUpdated();
+    if (mounted)
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Saved')));
+  }
+
+  void _addPart() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PartEditorPage(
+          bookId: widget.book.id,
+          firestoreService: widget.firestoreService,
+          chapterNumber: _chapters.length + 1,
+          onSaved: () => _loadChapters(),
+        ),
+      ),
+    );
+  }
+
+  void _editPart(dynamic chapter) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PartEditorPage(
+          bookId: widget.book.id,
+          firestoreService: widget.firestoreService,
+          chapter: chapter,
+          chapterNumber: chapter.chapterNumber,
+          onSaved: () => _loadChapters(),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Theme(
+      data: ThemeData.dark().copyWith(scaffoldBackgroundColor: _darkBg),
+      child: Scaffold(
+        appBar: AppBar(
+          backgroundColor: _darkBg,
+          leading: IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: const Text('Edit Story'),
+          actions: [
+            TextButton(
+              onPressed: _save,
+              child: const Text('Save', style: TextStyle(color: _accentColor)),
+            ),
+            const SizedBox(width: 8),
+          ],
+        ),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Cover
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: GestureDetector(
+                        onTap: _pickCover,
+                        child: Container(
+                          width: 80,
+                          height: 110,
+                          decoration: BoxDecoration(
+                            color: _darkCard,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.grey.shade700),
+                          ),
+                          child: _newCover != null
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.memory(
+                                    _newCover!,
+                                    fit: BoxFit.cover,
+                                  ),
+                                )
+                              : widget.book.coverImageUrl.isNotEmpty
+                              ? _buildBookCover(
+                                  widget.book.coverImageUrl,
+                                  width: 80,
+                                  height: 110,
+                                )
+                              : const Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.add_circle_outline,
+                                      color: _darkTextSecondary,
+                                    ),
+                                    SizedBox(height: 4),
+                                    Text(
+                                      'Add a cover',
+                                      style: TextStyle(
+                                        color: _darkTextSecondary,
+                                        fontSize: 10,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                        ),
+                      ),
+                    ),
+
+                    // Form fields
+                    _buildField('Title *', _titleController),
+                    _buildField('Description *', _descController, maxLines: 3),
+
+                    // Category
+                    ListTile(
+                      title: const Text(
+                        'Category *',
+                        style: TextStyle(color: _darkText),
+                      ),
+                      trailing: DropdownButton<String>(
+                        value: _category,
+                        dropdownColor: _darkCard,
+                        style: const TextStyle(color: _darkTextSecondary),
+                        underline: const SizedBox(),
+                        items: _categories
+                            .map(
+                              (c) => DropdownMenuItem(value: c, child: Text(c)),
+                            )
+                            .toList(),
+                        onChanged: (v) {
+                          if (v != null) setState(() => _category = v);
+                        },
+                      ),
+                    ),
+                    Divider(color: Colors.grey.shade800, height: 1),
+
+                    _buildField(
+                      'Tags',
+                      _tagsController,
+                      hint: 'Adding tags helps readers find your story!',
+                    ),
+
+                    // Mature toggle
+                    SwitchListTile(
+                      title: const Text(
+                        'Mature',
+                        style: TextStyle(color: _darkText),
+                      ),
+                      subtitle: const Text(
+                        'Your story is appropriate for all audiences.',
+                        style: TextStyle(
+                          color: _darkTextSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
+                      value: _isMature,
+                      activeColor: _accentColor,
+                      onChanged: (v) => setState(() => _isMature = v),
+                    ),
+                    Divider(color: Colors.grey.shade800, height: 1),
+
+                    // Completed toggle
+                    SwitchListTile(
+                      title: const Text(
+                        'Completed',
+                        style: TextStyle(color: _darkText),
+                      ),
+                      value: _isCompleted,
+                      activeColor: _accentColor,
+                      onChanged: (v) => setState(() => _isCompleted = v),
+                    ),
+                    Divider(color: Colors.grey.shade800, height: 1),
+
+                    // Table of contents
+                    Container(
+                      color: Colors.grey.shade900,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Table of contents',
+                            style: TextStyle(
+                              color: _darkText,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Icon(
+                            Icons.settings,
+                            color: _darkTextSecondary,
+                            size: 20,
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Chapters list
+                    if (_chapters.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text(
+                          'No parts yet',
+                          style: TextStyle(color: _darkTextSecondary),
+                        ),
+                      )
+                    else
+                      ...(_chapters.map(
+                        (ch) => ListTile(
+                          title: Text(
+                            ch.title.isEmpty
+                                ? 'Part ${ch.chapterNumber}'
+                                : ch.title,
+                            style: const TextStyle(color: _darkText),
+                          ),
+                          subtitle: Text(
+                            'Part ${ch.chapterNumber}',
+                            style: const TextStyle(
+                              color: _darkTextSecondary,
+                              fontSize: 12,
+                            ),
+                          ),
+                          trailing: const Icon(
+                            Icons.chevron_right,
+                            color: _darkTextSecondary,
+                          ),
+                          onTap: () => _editPart(ch),
+                        ),
+                      )),
+
+                    const SizedBox(height: 80),
+                  ],
+                ),
+              ),
+        bottomNavigationBar: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: ElevatedButton.icon(
+              onPressed: _addPart,
+              icon: const Icon(Icons.add),
+              label: const Text('Add a Part'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _darkCard,
+                foregroundColor: _darkText,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildField(
+    String label,
+    TextEditingController controller, {
+    int maxLines = 1,
+    String? hint,
+  }) {
+    return Column(
+      children: [
+        ListTile(
+          title: Text(label, style: const TextStyle(color: _darkText)),
+          trailing: const Icon(Icons.chevron_right, color: _darkTextSecondary),
+          onTap: () => _showFieldEditor(label, controller, maxLines: maxLines),
+        ),
+        Divider(color: Colors.grey.shade800, height: 1),
+      ],
+    );
+  }
+
+  void _showFieldEditor(
+    String label,
+    TextEditingController controller, {
+    int maxLines = 1,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: _darkBg,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  color: _darkText,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                maxLines: maxLines,
+                style: const TextStyle(color: _darkText),
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: _darkCard,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    setState(() {});
+                    Navigator.pop(ctx);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _accentColor,
+                  ),
+                  child: const Text('Done'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ==================== PART EDITOR PAGE ====================
+class PartEditorPage extends StatefulWidget {
+  final String bookId;
+  final FirestoreService firestoreService;
+  final dynamic chapter;
+  final int chapterNumber;
+  final VoidCallback onSaved;
+
+  const PartEditorPage({
+    Key? key,
+    required this.bookId,
+    required this.firestoreService,
+    this.chapter,
+    required this.chapterNumber,
+    required this.onSaved,
+  }) : super(key: key);
+
+  @override
+  State<PartEditorPage> createState() => _PartEditorPageState();
+}
+
+class _PartEditorPageState extends State<PartEditorPage> {
+  late TextEditingController _titleController;
+  late TextEditingController _contentController;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: widget.chapter?.title ?? '');
+    _contentController = TextEditingController(
+      text: widget.chapter?.content ?? '',
+    );
+    _contentController.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _contentController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _publish() async {
+    if (_titleController.text.trim().isEmpty ||
+        _contentController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Title and content are required')),
+      );
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      if (widget.chapter == null) {
+        await widget.firestoreService.createChapter(
+          widget.bookId,
+          widget.chapterNumber,
+          _titleController.text.trim(),
+          _contentController.text.trim(),
+        );
+      } else {
+        await widget.firestoreService.updateChapter(
+          widget.chapter.id,
+          _titleController.text.trim(),
+          _contentController.text.trim(),
+        );
+      }
+      widget.onSaved();
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Published!')));
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  // Toggle formatting on selected text (wrap/unwrap with markers)
+  void _toggleFormat(String startTag, String endTag) {
+    final text = _contentController.text;
+    final selection = _contentController.selection;
+
+    if (!selection.isValid || selection.isCollapsed) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Select some text first'),
+          duration: Duration(seconds: 1),
+        ),
+      );
+      return;
+    }
+
+    final start = selection.start;
+    final end = selection.end;
+    final selectedText = text.substring(start, end);
+
+    String newText;
+    int newStart, newEnd;
+
+    // Check if already formatted - remove formatting
+    if (selectedText.startsWith(startTag) && selectedText.endsWith(endTag)) {
+      // Remove tags
+      final unformatted = selectedText.substring(
+        startTag.length,
+        selectedText.length - endTag.length,
+      );
+      newText = text.substring(0, start) + unformatted + text.substring(end);
+      newStart = start;
+      newEnd = start + unformatted.length;
+    } else {
+      // Add tags
+      final formatted = '$startTag$selectedText$endTag';
+      newText = text.substring(0, start) + formatted + text.substring(end);
+      newStart = start;
+      newEnd = start + formatted.length;
+    }
+
+    _contentController.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection(baseOffset: newStart, extentOffset: newEnd),
+    );
+  }
+
+  void _toggleBold() => _toggleFormat('**', '**');
+  void _toggleItalic() => _toggleFormat('_', '_');
+  void _toggleUnderline() => _toggleFormat('<u>', '</u>');
+
+  // Parse text and build formatted TextSpans
+  List<TextSpan> _buildFormattedText(String text) {
+    final List<TextSpan> spans = [];
+    final RegExp pattern = RegExp(r'\*\*(.+?)\*\*|_(.+?)_|<u>(.+?)</u>');
+    
+    int lastEnd = 0;
+    for (final match in pattern.allMatches(text)) {
+      // Add plain text before match
+      if (match.start > lastEnd) {
+        spans.add(TextSpan(text: text.substring(lastEnd, match.start)));
+      }
+      
+      // Determine formatting type and add styled span
+      if (match.group(1) != null) {
+        // Bold **text**
+        spans.add(TextSpan(
+          text: match.group(1),
+          style: const TextStyle(fontWeight: FontWeight.bold, color: _darkText),
+        ));
+      } else if (match.group(2) != null) {
+        // Italic _text_
+        spans.add(TextSpan(
+          text: match.group(2),
+          style: const TextStyle(fontStyle: FontStyle.italic, color: _darkText),
+        ));
+      } else if (match.group(3) != null) {
+        // Underline <u>text</u>
+        spans.add(TextSpan(
+          text: match.group(3),
+          style: const TextStyle(decoration: TextDecoration.underline, color: _darkText),
+        ));
+      }
+      
+      lastEnd = match.end;
+    }
+    
+    // Add remaining plain text
+    if (lastEnd < text.length) {
+      spans.add(TextSpan(text: text.substring(lastEnd)));
+    }
+    
+    return spans.isEmpty ? [TextSpan(text: text)] : spans;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Theme(
+      data: ThemeData.dark().copyWith(scaffoldBackgroundColor: _darkBg),
+      child: Scaffold(
+        appBar: AppBar(
+          backgroundColor: _darkBg,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: DropdownButton<int>(
+            value: widget.chapterNumber,
+            dropdownColor: _darkCard,
+            style: const TextStyle(color: _darkText),
+            underline: const SizedBox(),
+            items: [
+              DropdownMenuItem(
+                value: widget.chapterNumber,
+                child: Text('Part ${widget.chapterNumber}'),
+              ),
+            ],
+            onChanged: (_) {},
+          ),
+          actions: [
+            TextButton(
+              onPressed: _saving ? null : _publish,
+              child: Text(
+                'Publish',
+                style: TextStyle(
+                  color: _saving ? _darkTextSecondary : _darkText,
+                ),
+              ),
+            ),
+          ],
+        ),
+        body: Column(
+          children: [
+            // Formatting toolbar
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: _darkCard,
+                border: Border(bottom: BorderSide(color: Colors.grey.shade800)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _FormatButton(
+                    icon: Icons.format_bold,
+                    tooltip: 'Bold',
+                    onPressed: _toggleBold,
+                  ),
+                  const SizedBox(width: 16),
+                  _FormatButton(
+                    icon: Icons.format_italic,
+                    tooltip: 'Italic',
+                    onPressed: _toggleItalic,
+                  ),
+                  const SizedBox(width: 16),
+                  _FormatButton(
+                    icon: Icons.format_underline,
+                    tooltip: 'Underline',
+                    onPressed: _toggleUnderline,
+                  ),
+                ],
+              ),
+            ),
+
+            // Drag handle indicator
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade600,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    // Title
+                    TextField(
+                      controller: _titleController,
+                      style: const TextStyle(
+                        color: _darkText,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                      decoration: const InputDecoration(
+                        hintText: 'Part title',
+                        hintStyle: TextStyle(color: Color(0xFF555555)),
+                        border: InputBorder.none,
+                      ),
+                    ),
+                    Divider(color: Colors.grey.shade800),
+                    
+                    const SizedBox(height: 16),
+                    
+                    // Formatted preview card (tap to edit)
+                    GestureDetector(
+                      onTap: _showContentEditor,
+                      child: Container(
+                        width: double.infinity,
+                        constraints: const BoxConstraints(minHeight: 300),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: _darkCard,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey.shade700),
+                        ),
+                        child: _contentController.text.isEmpty
+                            ? const Center(
+                                child: Text(
+                                  'Tap here to write your story...',
+                                  style: TextStyle(color: Color(0xFF555555), fontSize: 16),
+                                ),
+                              )
+                            : RichText(
+                                textAlign: TextAlign.left,
+                                text: TextSpan(
+                                  style: const TextStyle(color: _darkText, fontSize: 16, height: 1.6),
+                                  children: _buildFormattedText(_contentController.text),
+                                ),
+                              ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showContentEditor() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: _darkBg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(ctx).viewInsets.bottom,
+          left: 16,
+          right: 16,
+          top: 16,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    _FormatButton(icon: Icons.format_bold, tooltip: 'Bold', onPressed: () { _toggleBold(); Navigator.pop(ctx); _showContentEditor(); }),
+                    const SizedBox(width: 8),
+                    _FormatButton(icon: Icons.format_italic, tooltip: 'Italic', onPressed: () { _toggleItalic(); Navigator.pop(ctx); _showContentEditor(); }),
+                    const SizedBox(width: 8),
+                    _FormatButton(icon: Icons.format_underline, tooltip: 'Underline', onPressed: () { _toggleUnderline(); Navigator.pop(ctx); _showContentEditor(); }),
+                  ],
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    setState(() {});
+                  },
+                  child: const Text('Done', style: TextStyle(color: _accentColor)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _contentController,
+              autofocus: true,
+              maxLines: 12,
+              style: const TextStyle(color: _darkText, fontSize: 16),
+              decoration: InputDecoration(
+                hintText: 'Write your story here...',
+                hintStyle: const TextStyle(color: Color(0xFF555555)),
+                filled: true,
+                fillColor: _darkCard,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Format button widget
+class _FormatButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onPressed;
+
+  const _FormatButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade800,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: _darkText, size: 22),
+        ),
+      ),
+    );
+  }
+}
+
+// ==================== PROFILE PAGE ====================
+class ProfilePage extends StatefulWidget {
+  final AuthService authService;
+  const ProfilePage({Key? key, required this.authService}) : super(key: key);
+  @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<ProfilePage> {
+  late final user = widget.authService.getCurrentUser();
+
+  @override
+  Widget build(BuildContext context) {
+    return Theme(
+      data: ThemeData.dark().copyWith(scaffoldBackgroundColor: _darkBg),
+      child: Scaffold(
+        appBar: AppBar(backgroundColor: _darkBg, title: const Text('Profile')),
+        body: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                radius: 40,
+                backgroundColor: Colors.grey.shade700,
+                child: const Icon(Icons.person, size: 48, color: Colors.white),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                user?.displayName ?? 'Unknown',
+                style: const TextStyle(
+                  color: _darkText,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                user?.email ?? '',
+                style: const TextStyle(color: _darkTextSecondary),
+              ),
+              const Spacer(),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () async {
+                    await widget.authService.logout();
+                    if (mounted)
+                      Navigator.pushReplacementNamed(context, '/login');
+                  },
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Colors.red),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: const Text(
+                    'Logout',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 32),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

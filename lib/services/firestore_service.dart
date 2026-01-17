@@ -65,16 +65,66 @@ class FirestoreService {
   Future<String> createBook(
     String writerId,
     String title,
-    String coverImageUrl,
-  ) async {
+    String coverImageUrl, {
+    String description = '',
+    String category = '',
+    List<String> tags = const [],
+    bool isMature = false,
+    bool isCompleted = false,
+    bool isDraft = false,
+  }) async {
     final docRef = await _firestore.collection('books').add({
       'writerId': writerId,
       'title': title,
       'coverImageUrl': coverImageUrl,
+      'description': description,
+      'category': category,
+      'tags': tags,
+      'isMature': isMature,
+      'isCompleted': isCompleted,
+      'isDraft': isDraft,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
     return docRef.id;
+  }
+
+  Future<void> updateBookCover(String bookId, String coverImageUrl) async {
+    await _firestore.collection('books').doc(bookId).update({
+      'coverImageUrl': coverImageUrl,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> updateBookDetails(
+    String bookId, {
+    String? title,
+    String? description,
+    String? category,
+    List<String>? tags,
+    bool? isMature,
+    bool? isCompleted,
+    String? coverImageUrl,
+  }) async {
+    final updates = <String, dynamic>{
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+    if (title != null) updates['title'] = title;
+    if (description != null) updates['description'] = description;
+    if (category != null) updates['category'] = category;
+    if (tags != null) updates['tags'] = tags;
+    if (isMature != null) updates['isMature'] = isMature;
+    if (isCompleted != null) updates['isCompleted'] = isCompleted;
+    if (coverImageUrl != null) updates['coverImageUrl'] = coverImageUrl;
+
+    await _firestore.collection('books').doc(bookId).update(updates);
+  }
+
+  Future<void> publishBook(String bookId) async {
+    await _firestore.collection('books').doc(bookId).update({
+      'isDraft': false,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
   }
 
   Future<void> deleteBook(String bookId) async {
@@ -101,6 +151,7 @@ class FirestoreService {
   Future<List<BookModel>> getAllBooks() async {
     final snapshot = await _firestore
         .collection('books')
+        .where('isDraft', isEqualTo: false)
         .orderBy('createdAt', descending: true)
         .get();
     return snapshot.docs
@@ -112,11 +163,13 @@ class FirestoreService {
     final snapshot = await _firestore
         .collection('books')
         .where('writerId', isEqualTo: writerId)
-        .orderBy('createdAt', descending: true)
         .get();
-    return snapshot.docs
+    final books = snapshot.docs
         .map((doc) => BookModel.fromMap(doc.data(), doc.id))
         .toList();
+    // Sort in app to avoid requiring composite index
+    books.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return books;
   }
 
   Future<BookModel?> getBookById(String bookId) async {
@@ -133,6 +186,7 @@ class FirestoreService {
     String title,
     String content, {
     List<String>? imageUrls,
+    bool isDraft = false,
   }) async {
     final docRef = await _firestore.collection('chapters').add({
       'bookId': bookId,
@@ -140,6 +194,7 @@ class FirestoreService {
       'title': title,
       'content': content,
       'imageUrls': imageUrls ?? [],
+      'isDraft': isDraft,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
@@ -151,11 +206,13 @@ class FirestoreService {
     String title,
     String content, {
     List<String>? imageUrls,
+    bool? isDraft,
   }) async {
     await _firestore.collection('chapters').doc(chapterId).update({
       'title': title,
       'content': content,
       if (imageUrls != null) 'imageUrls': imageUrls,
+      if (isDraft != null) 'isDraft': isDraft,
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }
@@ -185,11 +242,13 @@ class FirestoreService {
     final snapshot = await _firestore
         .collection('chapters')
         .where('bookId', isEqualTo: bookId)
-        .orderBy('chapterNumber', descending: false)
         .get();
-    return snapshot.docs
+    final chapters = snapshot.docs
         .map((doc) => ChapterModel.fromMap(doc.data(), doc.id))
         .toList();
+    // Sort in-app to avoid composite index requirement
+    chapters.sort((a, b) => a.chapterNumber.compareTo(b.chapterNumber));
+    return chapters;
   }
 
   Future<ChapterModel?> getChapterById(String chapterId) async {
