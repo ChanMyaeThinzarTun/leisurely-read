@@ -13,6 +13,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final AuthService authService = AuthService();
 
   bool loading = false;
+  bool _obscurePassword = true;
 
   void login() async {
     if (emailController.text.trim().isEmpty) {
@@ -121,8 +122,18 @@ class _LoginScreenState extends State<LoginScreen> {
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _obscurePassword = !_obscurePassword;
+                    });
+                  },
+                ),
               ),
-              obscureText: true,
+              obscureText: _obscurePassword,
             ),
             const SizedBox(height: 24),
             SizedBox(
