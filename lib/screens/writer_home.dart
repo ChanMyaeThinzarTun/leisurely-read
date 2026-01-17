@@ -5,10 +5,12 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/book_model.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
+import '../services/theme_service.dart';
 
 const List<String> _categories = [
   'Fiction',
@@ -29,7 +31,7 @@ const _darkBg = Color(0xFF121212);
 const _darkCard = Color(0xFF1E1E1E);
 const _darkText = Colors.white;
 const _darkTextSecondary = Color(0xFFAAAAAA);
-const _accentColor = Color(0xFFFF6B00);
+const _accentColor = Color(0xFF00BFA5); // Teal/Light Turquoise
 
 Widget _buildBookCover(
   String coverImageUrl, {
@@ -128,6 +130,9 @@ class _WriterHomeState extends State<WriterHome> {
   @override
   Widget build(BuildContext context) {
     final user = authService.getCurrentUser();
+    final publishedBooks = _allBooks.where((b) => !b.isDraft).toList();
+    final draftBooks = _allBooks.where((b) => b.isDraft).toList();
+    
     return Theme(
       data: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: _darkBg,
@@ -137,190 +142,247 @@ class _WriterHomeState extends State<WriterHome> {
         body: SafeArea(
           child: _loading
               ? const Center(child: CircularProgressIndicator())
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Header
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            'Write',
-                            style: TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
-                              color: _darkText,
-                            ),
-                          ),
-                          GestureDetector(
-                            onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    ProfilePage(authService: authService),
+              : SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Write',
+                              style: TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                                color: _darkText,
                               ),
                             ),
-                            child: Row(
-                              children: [
-                                Text(
-                                  '@${user?.displayName ?? user?.email?.split('@').first ?? 'User'}',
-                                  style: const TextStyle(
-                                    color: _darkTextSecondary,
-                                    fontSize: 14,
-                                  ),
+                            GestureDetector(
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      ProfilePage(authService: authService),
                                 ),
-                                const SizedBox(width: 8),
-                                CircleAvatar(
-                                  radius: 16,
-                                  backgroundColor: Colors.grey.shade700,
-                                  child: const Icon(
-                                    Icons.person,
-                                    size: 20,
-                                    color: Colors.white,
+                              ),
+                              child: Row(
+                                children: [
+                                  Text(
+                                    '@${user?.displayName ?? user?.email?.split('@').first ?? 'User'}',
+                                    style: const TextStyle(
+                                      color: _darkTextSecondary,
+                                      fontSize: 14,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(width: 8),
+                                  CircleAvatar(
+                                    radius: 16,
+                                    backgroundColor: Colors.grey.shade700,
+                                    child: const Icon(
+                                      Icons.person,
+                                      size: 20,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
 
-                    // Current Book Card
-                    if (_currentBook != null)
-                      GestureDetector(
-                        onTap: () => _openEditStory(_currentBook!),
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
-                          ),
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: _darkCard,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            children: [
-                              _buildBookCover(
-                                _currentBook!.coverImageUrl,
-                                width: 60,
-                                height: 85,
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text(
-                                      'Continue writing',
-                                      style: TextStyle(
-                                        color: _darkTextSecondary,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      _currentBook!.title,
-                                      style: const TextStyle(
-                                        color: _darkText,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    FutureBuilder(
-                                      future: firestoreService
-                                          .getChaptersByBook(_currentBook!.id),
-                                      builder: (context, snapshot) {
-                                        final count =
-                                            snapshot.data?.length ?? 0;
-                                        return Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: _accentColor,
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            '$count published parts',
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 11,
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const Icon(
-                                Icons.chevron_right,
-                                color: _darkTextSecondary,
-                              ),
-                            ],
+                      // Create new story button
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: ElevatedButton.icon(
+                          onPressed: () => _openCreateStory(),
+                          icon: const Icon(Icons.add, color: Colors.white),
+                          label: const Text('Create New Story'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _accentColor,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                           ),
                         ),
                       ),
 
-                    const SizedBox(height: 16),
+                      const SizedBox(height: 24),
 
-                    // Edit another story
-                    ListTile(
-                      leading: const Icon(
-                        Icons.edit_note,
-                        color: _darkText,
-                        size: 28,
+                      // Published Stories Section
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.public, color: _accentColor, size: 20),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Published Stories',
+                              style: TextStyle(
+                                color: _darkText,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: _accentColor,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                '${publishedBooks.length}',
+                                style: const TextStyle(color: Colors.white, fontSize: 12),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      title: const Text(
-                        'Edit another story',
-                        style: TextStyle(color: _darkText),
-                      ),
-                      onTap: () => _showStoryPicker(),
-                    ),
+                      const SizedBox(height: 12),
+                      
+                      if (publishedBooks.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                          child: Center(
+                            child: Text(
+                              'No published stories yet',
+                              style: TextStyle(color: Colors.grey.shade600),
+                            ),
+                          ),
+                        )
+                      else
+                        SizedBox(
+                          height: 180,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            itemCount: publishedBooks.length,
+                            itemBuilder: (context, index) {
+                              final book = publishedBooks[index];
+                              return _buildBookCard(book);
+                            },
+                          ),
+                        ),
 
-                    // Create new story
-                    ListTile(
-                      leading: const Icon(
-                        Icons.add_box_outlined,
-                        color: _darkText,
-                        size: 28,
-                      ),
-                      title: const Text(
-                        'Create new story',
-                        style: TextStyle(color: _darkText),
-                      ),
-                      onTap: () => _openCreateStory(),
-                    ),
+                      const SizedBox(height: 24),
 
-                    const Spacer(),
+                      // Draft Stories Section
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.edit_note, color: Colors.grey, size: 20),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Drafts',
+                              style: TextStyle(
+                                color: _darkText,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade700,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                '${draftBooks.length}',
+                                style: const TextStyle(color: Colors.white, fontSize: 12),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      
+                      if (draftBooks.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                          child: Center(
+                            child: Text(
+                              'No drafts',
+                              style: TextStyle(color: Colors.grey.shade600),
+                            ),
+                          ),
+                        )
+                      else
+                        SizedBox(
+                          height: 180,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            itemCount: draftBooks.length,
+                            itemBuilder: (context, index) {
+                              final book = draftBooks[index];
+                              return _buildBookCard(book, isDraft: true);
+                            },
+                          ),
+                        ),
 
-                    // Logout
-                    ListTile(
-                      leading: const Icon(
-                        Icons.logout,
-                        color: _darkTextSecondary,
-                      ),
-                      title: const Text(
-                        'Logout',
-                        style: TextStyle(color: _darkTextSecondary),
-                      ),
-                      onTap: () async {
-                        await authService.logout();
-                        if (mounted)
-                          Navigator.pushReplacementNamed(context, '/login');
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                  ],
+                      const SizedBox(height: 32),
+                    ],
+                  ),
                 ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBookCard(BookModel book, {bool isDraft = false}) {
+    return GestureDetector(
+      onTap: () => _openEditStory(book),
+      child: Container(
+        width: 120,
+        margin: const EdgeInsets.symmetric(horizontal: 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Stack(
+              children: [
+                _buildBookCover(
+                  book.coverImageUrl,
+                  width: 120,
+                  height: 140,
+                ),
+                if (isDraft)
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade700,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Text(
+                        'DRAFT',
+                        style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              book.title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: _darkText,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1468,53 +1530,456 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   late final user = widget.authService.getCurrentUser();
+  final _nicknameController = TextEditingController();
+  bool _editingNickname = false;
+  bool _savingNickname = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nicknameController.text = user?.displayName ?? '';
+    themeService.addListener(_onThemeChanged);
+  }
+
+  @override
+  void dispose() {
+    _nicknameController.dispose();
+    themeService.removeListener(_onThemeChanged);
+    super.dispose();
+  }
+
+  void _onThemeChanged() {
+    setState(() {});
+  }
+
+  Future<void> _updateNickname() async {
+    if (_nicknameController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nickname cannot be empty')),
+      );
+      return;
+    }
+    setState(() => _savingNickname = true);
+    try {
+      await user?.updateDisplayName(_nicknameController.text.trim());
+      await user?.reload();
+      setState(() {
+        _editingNickname = false;
+        _savingNickname = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Nickname updated successfully')),
+        );
+      }
+    } catch (e) {
+      setState(() => _savingNickname = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error updating nickname: $e')),
+        );
+      }
+    }
+  }
+
+  void _showChangePasswordDialog() {
+    final oldPasswordController = TextEditingController();
+    final newPasswordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
+    bool loading = false;
+    bool obscureOld = true;
+    bool obscureNew = true;
+    bool obscureConfirm = true;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: _darkCard,
+          title: const Text('Change Password', style: TextStyle(color: _darkText)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: oldPasswordController,
+                  obscureText: obscureOld,
+                  style: const TextStyle(color: _darkText),
+                  decoration: InputDecoration(
+                    labelText: 'Current Password',
+                    labelStyle: const TextStyle(color: _darkTextSecondary),
+                    enabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.grey.shade600),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: const BorderSide(color: _accentColor),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        obscureOld ? Icons.visibility_off : Icons.visibility,
+                        color: _darkTextSecondary,
+                      ),
+                      onPressed: () => setDialogState(() => obscureOld = !obscureOld),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: newPasswordController,
+                  obscureText: obscureNew,
+                  style: const TextStyle(color: _darkText),
+                  decoration: InputDecoration(
+                    labelText: 'New Password',
+                    labelStyle: const TextStyle(color: _darkTextSecondary),
+                    enabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.grey.shade600),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: const BorderSide(color: _accentColor),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        obscureNew ? Icons.visibility_off : Icons.visibility,
+                        color: _darkTextSecondary,
+                      ),
+                      onPressed: () => setDialogState(() => obscureNew = !obscureNew),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: confirmPasswordController,
+                  obscureText: obscureConfirm,
+                  style: const TextStyle(color: _darkText),
+                  decoration: InputDecoration(
+                    labelText: 'Confirm New Password',
+                    labelStyle: const TextStyle(color: _darkTextSecondary),
+                    enabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.grey.shade600),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: const BorderSide(color: _accentColor),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        obscureConfirm ? Icons.visibility_off : Icons.visibility,
+                        color: _darkTextSecondary,
+                      ),
+                      onPressed: () => setDialogState(() => obscureConfirm = !obscureConfirm),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: loading ? null : () => Navigator.pop(ctx),
+              child: Text('Cancel', style: TextStyle(color: Colors.grey.shade400)),
+            ),
+            ElevatedButton(
+              onPressed: loading
+                  ? null
+                  : () async {
+                      if (oldPasswordController.text.isEmpty ||
+                          newPasswordController.text.isEmpty ||
+                          confirmPasswordController.text.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Please fill all fields')),
+                        );
+                        return;
+                      }
+                      if (newPasswordController.text != confirmPasswordController.text) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('New passwords do not match')),
+                        );
+                        return;
+                      }
+                      if (newPasswordController.text.length < 6) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Password must be at least 6 characters')),
+                        );
+                        return;
+                      }
+
+                      setDialogState(() => loading = true);
+                      try {
+                        // Re-authenticate user with old password
+                        final credential = EmailAuthProvider.credential(
+                          email: user?.email ?? '',
+                          password: oldPasswordController.text,
+                        );
+                        await user?.reauthenticateWithCredential(credential);
+                        
+                        // Update password
+                        await user?.updatePassword(newPasswordController.text);
+                        
+                        Navigator.pop(ctx);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Password changed successfully')),
+                          );
+                        }
+                      } on FirebaseAuthException catch (e) {
+                        setDialogState(() => loading = false);
+                        String message = 'Error changing password';
+                        if (e.code == 'wrong-password') {
+                          message = 'Current password is incorrect';
+                        } else if (e.code == 'weak-password') {
+                          message = 'New password is too weak';
+                        }
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(message)),
+                        );
+                      } catch (e) {
+                        setDialogState(() => loading = false);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Error: $e')),
+                        );
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _accentColor,
+              ),
+              child: loading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Text('Change Password'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = themeService.isDarkMode;
     return Theme(
-      data: ThemeData.dark().copyWith(scaffoldBackgroundColor: _darkBg),
+      data: isDarkMode
+          ? ThemeData.dark().copyWith(scaffoldBackgroundColor: _darkBg)
+          : ThemeData.light().copyWith(scaffoldBackgroundColor: Colors.grey.shade100),
       child: Scaffold(
-        appBar: AppBar(backgroundColor: _darkBg, title: const Text('Profile')),
-        body: Padding(
+        appBar: AppBar(
+          backgroundColor: isDarkMode ? _darkBg : Colors.white,
+          foregroundColor: isDarkMode ? _darkText : Colors.black,
+          title: const Text('Profile'),
+          elevation: 0,
+        ),
+        body: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CircleAvatar(
-                radius: 40,
-                backgroundColor: Colors.grey.shade700,
-                child: const Icon(Icons.person, size: 48, color: Colors.white),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                user?.displayName ?? 'Unknown',
-                style: const TextStyle(
-                  color: _darkText,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
+              // Profile Header
+              Center(
+                child: Column(
+                  children: [
+                    CircleAvatar(
+                      radius: 50,
+                      backgroundColor: isDarkMode ? Colors.grey.shade700 : Colors.grey.shade300,
+                      child: Icon(
+                        Icons.person,
+                        size: 56,
+                        color: isDarkMode ? Colors.white : Colors.grey.shade600,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Nickname (editable)
+                    if (_editingNickname)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 180,
+                            child: TextField(
+                              controller: _nicknameController,
+                              style: TextStyle(
+                                color: isDarkMode ? _darkText : Colors.black,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                              decoration: InputDecoration(
+                                isDense: true,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: const BorderSide(color: _accentColor),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          if (_savingNickname)
+                            const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          else ...[
+                            IconButton(
+                              icon: const Icon(Icons.check, color: Colors.green),
+                              onPressed: _updateNickname,
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.close, color: Colors.red),
+                              onPressed: () {
+                                setState(() {
+                                  _editingNickname = false;
+                                  _nicknameController.text = user?.displayName ?? '';
+                                });
+                              },
+                            ),
+                          ],
+                        ],
+                      )
+                    else
+                      GestureDetector(
+                        onTap: () => setState(() => _editingNickname = true),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              user?.displayName ?? 'Set Nickname',
+                              style: TextStyle(
+                                color: isDarkMode ? _darkText : Colors.black,
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Icon(
+                              Icons.edit,
+                              size: 18,
+                              color: isDarkMode ? _darkTextSecondary : Colors.grey,
+                            ),
+                          ],
+                        ),
+                      ),
+                    
+                    const SizedBox(height: 8),
+                    
+                    // Email (non-editable)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.email_outlined,
+                          size: 16,
+                          color: isDarkMode ? _darkTextSecondary : Colors.grey,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          user?.email ?? '',
+                          style: TextStyle(
+                            color: isDarkMode ? _darkTextSecondary : Colors.grey.shade600,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 4),
+
+              const SizedBox(height: 32),
+
+              // Settings Section
               Text(
-                user?.email ?? '',
-                style: const TextStyle(color: _darkTextSecondary),
+                'Settings',
+                style: TextStyle(
+                  color: isDarkMode ? _darkTextSecondary : Colors.grey,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
-              const Spacer(),
+              const SizedBox(height: 12),
+
+              // Theme Toggle
+              Container(
+                decoration: BoxDecoration(
+                  color: isDarkMode ? _darkCard : Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: ListTile(
+                  leading: Icon(
+                    isDarkMode ? Icons.dark_mode : Icons.light_mode,
+                    color: isDarkMode ? _darkText : Colors.black,
+                  ),
+                  title: Text(
+                    'Dark Mode',
+                    style: TextStyle(color: isDarkMode ? _darkText : Colors.black),
+                  ),
+                  trailing: Switch(
+                    value: isDarkMode,
+                    onChanged: (val) => themeService.setDarkMode(val),
+                    activeColor: _accentColor,
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 8),
+
+              // Change Password
+              Container(
+                decoration: BoxDecoration(
+                  color: isDarkMode ? _darkCard : Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: ListTile(
+                  leading: Icon(
+                    Icons.lock_outline,
+                    color: isDarkMode ? _darkText : Colors.black,
+                  ),
+                  title: Text(
+                    'Change Password',
+                    style: TextStyle(color: isDarkMode ? _darkText : Colors.black),
+                  ),
+                  trailing: Icon(
+                    Icons.chevron_right,
+                    color: isDarkMode ? _darkTextSecondary : Colors.grey,
+                  ),
+                  onTap: _showChangePasswordDialog,
+                ),
+              ),
+
+              const SizedBox(height: 32),
+
+              // Logout Button
               SizedBox(
                 width: double.infinity,
-                child: OutlinedButton(
+                child: OutlinedButton.icon(
                   onPressed: () async {
                     await widget.authService.logout();
-                    if (mounted)
+                    if (mounted) {
                       Navigator.pushReplacementNamed(context, '/login');
+                    }
                   },
+                  icon: const Icon(Icons.logout, color: Colors.red),
+                  label: const Text(
+                    'Logout',
+                    style: TextStyle(color: Colors.red),
+                  ),
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: Colors.red),
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                  child: const Text(
-                    'Logout',
-                    style: TextStyle(color: Colors.red),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
               ),
