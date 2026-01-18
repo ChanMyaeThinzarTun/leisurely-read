@@ -1682,17 +1682,24 @@ class _BookDetailScreenState extends State<_BookDetailScreen> {
   bool _inLibrary = false;
   bool _askedToAddLibrary = false;
   final currentUser = FirebaseAuth.instance.currentUser;
+  late int _readCount;
 
   @override
   void initState() {
     super.initState();
+    _readCount = widget.book.readCount;
     chapters = widget.firestoreService.getChaptersByBook(widget.book.id);
     totalVotes = widget.firestoreService.getTotalVotesForBook(widget.book.id);
     chapterCount = widget.firestoreService.getChapterCount(widget.book.id);
     commentCount = widget.firestoreService.getCommentCount(widget.book.id);
     _checkLibrary();
     // Increment read count
-    widget.firestoreService.incrementReadCount(widget.book.id);
+    _incrementReadCount();
+  }
+
+  Future<void> _incrementReadCount() async {
+    await widget.firestoreService.incrementReadCount(widget.book.id);
+    setState(() => _readCount = _readCount + 1);
   }
 
   Future<void> _checkLibrary() async {
@@ -1845,7 +1852,7 @@ class _BookDetailScreenState extends State<_BookDetailScreen> {
                         children: [
                           _StatItem(
                             icon: Icons.visibility,
-                            value: _formatNumber(widget.book.readCount),
+                            value: _formatNumber(_readCount),
                             label: 'Reads',
                           ),
                           const SizedBox(width: 24),
@@ -2410,7 +2417,7 @@ class _ChapterReadScreenState extends State<_ChapterReadScreen> {
                     return _BottomBarItem(
                       icon: voted ? Icons.star : Icons.star_border,
                       label: 'Vote',
-                      color: voted ? Colors.amber : null,
+                      color: voted ? _accentColor : null,
                       onTap: () async {
                         if (currentUser == null) {
                           ScaffoldMessenger.of(context).showSnackBar(

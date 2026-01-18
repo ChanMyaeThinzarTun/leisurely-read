@@ -292,7 +292,7 @@ class _WriterHomeState extends State<WriterHome> {
                         )
                       else
                         SizedBox(
-                          height: 180,
+                          height: 210,
                           child: ListView.builder(
                             scrollDirection: Axis.horizontal,
                             padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -363,7 +363,7 @@ class _WriterHomeState extends State<WriterHome> {
                         )
                       else
                         SizedBox(
-                          height: 180,
+                          height: 210,
                           child: ListView.builder(
                             scrollDirection: Axis.horizontal,
                             padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -426,7 +426,7 @@ class _WriterHomeState extends State<WriterHome> {
             const SizedBox(height: 8),
             Text(
               book.title,
-              maxLines: 2,
+              maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: isDarkMode ? _darkText : Colors.black,
@@ -434,10 +434,58 @@ class _WriterHomeState extends State<WriterHome> {
                 fontWeight: FontWeight.w500,
               ),
             ),
+            const SizedBox(height: 4),
+            // Stats row for reads and votes
+            FutureBuilder<int>(
+              future: firestoreService.getTotalVotesForBook(book.id),
+              builder: (context, voteSnapshot) {
+                final votes = voteSnapshot.data ?? 0;
+                return Row(
+                  children: [
+                    Icon(
+                      Icons.visibility,
+                      size: 12,
+                      color: isDarkMode ? _darkTextSecondary : Colors.grey,
+                    ),
+                    const SizedBox(width: 2),
+                    Text(
+                      _formatNumber(book.readCount),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isDarkMode ? _darkTextSecondary : Colors.grey,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(
+                      Icons.star,
+                      size: 12,
+                      color: isDarkMode ? _darkTextSecondary : Colors.grey,
+                    ),
+                    const SizedBox(width: 2),
+                    Text(
+                      _formatNumber(votes),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isDarkMode ? _darkTextSecondary : Colors.grey,
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
           ],
         ),
       ),
     );
+  }
+
+  String _formatNumber(int number) {
+    if (number >= 1000000) {
+      return '${(number / 1000000).toStringAsFixed(1)}M';
+    } else if (number >= 1000) {
+      return '${(number / 1000).toStringAsFixed(1)}K';
+    }
+    return number.toString();
   }
 
   void _showDeleteStoryDialog(BookModel book) {

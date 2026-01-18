@@ -334,11 +334,13 @@ class FirestoreService {
     final snapshot = await _firestore
         .collection('comments')
         .where('parentCommentId', isEqualTo: parentCommentId)
-        .orderBy('createdAt', descending: false)
         .get();
-    return snapshot.docs
+    final replies = snapshot.docs
         .map((doc) => CommentModel.fromMap(doc.data(), doc.id))
         .toList();
+    // Sort in-app to avoid needing composite index
+    replies.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    return replies;
   }
 
   Future<List<CommentModel>> getInlineComments(String chapterId) async {
