@@ -96,7 +96,7 @@ Widget _buildBookCover(
 
 // ==================== WRITER HOME ====================
 class WriterHome extends StatefulWidget {
-  const WriterHome({Key? key}) : super(key: key);
+  const WriterHome({super.key});
   @override
   State<WriterHome> createState() => _WriterHomeState();
 }
@@ -133,16 +133,22 @@ class _WriterHomeState extends State<WriterHome> {
     final publishedBooks = _allBooks.where((b) => !b.isDraft).toList();
     final draftBooks = _allBooks.where((b) => b.isDraft).toList();
     final isDarkMode = themeService.isDarkMode;
-    
+
     return Theme(
       data: isDarkMode
           ? ThemeData.dark().copyWith(
               scaffoldBackgroundColor: _darkBg,
-              appBarTheme: const AppBarTheme(backgroundColor: _darkBg, elevation: 0),
+              appBarTheme: const AppBarTheme(
+                backgroundColor: _darkBg,
+                elevation: 0,
+              ),
             )
           : ThemeData.light().copyWith(
               scaffoldBackgroundColor: Colors.grey.shade100,
-              appBarTheme: const AppBarTheme(backgroundColor: Colors.white, elevation: 0),
+              appBarTheme: const AppBarTheme(
+                backgroundColor: Colors.white,
+                elevation: 0,
+              ),
             ),
       child: Scaffold(
         body: SafeArea(
@@ -179,18 +185,24 @@ class _WriterHomeState extends State<WriterHome> {
                                   Text(
                                     '@${user?.displayName ?? user?.email?.split('@').first ?? 'User'}',
                                     style: TextStyle(
-                                      color: isDarkMode ? _darkTextSecondary : Colors.grey.shade600,
+                                      color: isDarkMode
+                                          ? _darkTextSecondary
+                                          : Colors.grey.shade600,
                                       fontSize: 14,
                                     ),
                                   ),
                                   const SizedBox(width: 8),
                                   CircleAvatar(
                                     radius: 16,
-                                    backgroundColor: isDarkMode ? Colors.grey.shade700 : Colors.grey.shade300,
+                                    backgroundColor: isDarkMode
+                                        ? Colors.grey.shade700
+                                        : Colors.grey.shade300,
                                     child: Icon(
                                       Icons.person,
                                       size: 20,
-                                      color: isDarkMode ? Colors.white : Colors.grey.shade600,
+                                      color: isDarkMode
+                                          ? Colors.white
+                                          : Colors.grey.shade600,
                                     ),
                                   ),
                                 ],
@@ -210,7 +222,10 @@ class _WriterHomeState extends State<WriterHome> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: _accentColor,
                             foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 12,
+                              horizontal: 20,
+                            ),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
@@ -225,7 +240,11 @@ class _WriterHomeState extends State<WriterHome> {
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: Row(
                           children: [
-                            const Icon(Icons.public, color: _accentColor, size: 20),
+                            const Icon(
+                              Icons.public,
+                              color: _accentColor,
+                              size: 20,
+                            ),
                             const SizedBox(width: 8),
                             Text(
                               'Published Stories',
@@ -237,24 +256,33 @@ class _WriterHomeState extends State<WriterHome> {
                             ),
                             const SizedBox(width: 8),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
                                 color: _accentColor,
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Text(
                                 '${publishedBooks.length}',
-                                style: const TextStyle(color: Colors.white, fontSize: 12),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                ),
                               ),
                             ),
                           ],
                         ),
                       ),
                       const SizedBox(height: 12),
-                      
+
                       if (publishedBooks.isEmpty)
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 20,
+                          ),
                           child: Center(
                             child: Text(
                               'No published stories yet',
@@ -283,7 +311,11 @@ class _WriterHomeState extends State<WriterHome> {
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: Row(
                           children: [
-                            const Icon(Icons.edit_note, color: Colors.grey, size: 20),
+                            const Icon(
+                              Icons.edit_note,
+                              color: Colors.grey,
+                              size: 20,
+                            ),
                             const SizedBox(width: 8),
                             Text(
                               'Drafts',
@@ -295,24 +327,33 @@ class _WriterHomeState extends State<WriterHome> {
                             ),
                             const SizedBox(width: 8),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
                                 color: Colors.grey.shade700,
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Text(
                                 '${draftBooks.length}',
-                                style: const TextStyle(color: Colors.white, fontSize: 12),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                ),
                               ),
                             ),
                           ],
                         ),
                       ),
                       const SizedBox(height: 12),
-                      
+
                       if (draftBooks.isEmpty)
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 20,
+                          ),
                           child: Center(
                             child: Text(
                               'No drafts',
@@ -356,24 +397,27 @@ class _WriterHomeState extends State<WriterHome> {
           children: [
             Stack(
               children: [
-                _buildBookCover(
-                  book.coverImageUrl,
-                  width: 120,
-                  height: 140,
-                ),
+                _buildBookCover(book.coverImageUrl, width: 120, height: 140),
                 if (isDraft)
                   Positioned(
                     top: 4,
                     right: 4,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFFE57373),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: const Text(
                         'DRAFT',
-                        style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
@@ -408,12 +452,19 @@ class _WriterHomeState extends State<WriterHome> {
         ),
         content: Text(
           'Are you sure you want to delete "${book.title}"? This will also delete all chapters and cannot be undone.',
-          style: TextStyle(color: isDarkMode ? _darkTextSecondary : Colors.grey.shade700),
+          style: TextStyle(
+            color: isDarkMode ? _darkTextSecondary : Colors.grey.shade700,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel', style: TextStyle(color: isDarkMode ? _darkTextSecondary : Colors.grey)),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                color: isDarkMode ? _darkTextSecondary : Colors.grey,
+              ),
+            ),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -471,10 +522,15 @@ class _WriterHomeState extends State<WriterHome> {
                 width: 40,
                 height: 55,
               ),
-              title: Text(book.title, style: TextStyle(color: isDarkMode ? _darkText : Colors.black)),
+              title: Text(
+                book.title,
+                style: TextStyle(color: isDarkMode ? _darkText : Colors.black),
+              ),
               subtitle: Text(
                 book.category,
-                style: TextStyle(color: isDarkMode ? _darkTextSecondary : Colors.grey.shade600),
+                style: TextStyle(
+                  color: isDarkMode ? _darkTextSecondary : Colors.grey.shade600,
+                ),
               ),
               onTap: () {
                 Navigator.pop(ctx);
@@ -524,11 +580,11 @@ class CreateStoryPage extends StatefulWidget {
   final Function(BookModel) onCreated;
 
   const CreateStoryPage({
-    Key? key,
+    super.key,
     required this.authService,
     required this.firestoreService,
     required this.onCreated,
-  }) : super(key: key);
+  });
   @override
   State<CreateStoryPage> createState() => _CreateStoryPageState();
 }
@@ -601,10 +657,11 @@ class _CreateStoryPageState extends State<CreateStoryPage> {
         widget.onCreated(createdBook);
       }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -616,7 +673,9 @@ class _CreateStoryPageState extends State<CreateStoryPage> {
     return Theme(
       data: isDarkMode
           ? ThemeData.dark().copyWith(scaffoldBackgroundColor: _darkBg)
-          : ThemeData.light().copyWith(scaffoldBackgroundColor: Colors.grey.shade100),
+          : ThemeData.light().copyWith(
+              scaffoldBackgroundColor: Colors.grey.shade100,
+            ),
       child: Scaffold(
         appBar: AppBar(
           backgroundColor: isDarkMode ? _darkBg : Colors.white,
@@ -631,7 +690,9 @@ class _CreateStoryPageState extends State<CreateStoryPage> {
               onPressed: () => Navigator.pop(context),
               child: Text(
                 'Skip',
-                style: TextStyle(color: isDarkMode ? _darkTextSecondary : Colors.grey.shade600),
+                style: TextStyle(
+                  color: isDarkMode ? _darkTextSecondary : Colors.grey.shade600,
+                ),
               ),
             ),
           ],
@@ -650,7 +711,11 @@ class _CreateStoryPageState extends State<CreateStoryPage> {
                   decoration: BoxDecoration(
                     color: isDarkMode ? _darkCard : Colors.white,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: isDarkMode ? Colors.grey.shade700 : Colors.grey.shade300),
+                    border: Border.all(
+                      color: isDarkMode
+                          ? Colors.grey.shade700
+                          : Colors.grey.shade300,
+                    ),
                   ),
                   child: _coverImage != null
                       ? ClipRRect(
@@ -662,14 +727,18 @@ class _CreateStoryPageState extends State<CreateStoryPage> {
                           children: [
                             Icon(
                               Icons.add_circle_outline,
-                              color: isDarkMode ? _darkTextSecondary : Colors.grey.shade500,
+                              color: isDarkMode
+                                  ? _darkTextSecondary
+                                  : Colors.grey.shade500,
                               size: 24,
                             ),
                             const SizedBox(height: 4),
                             Text(
                               'Add a cover',
                               style: TextStyle(
-                                color: isDarkMode ? _darkTextSecondary : Colors.grey.shade500,
+                                color: isDarkMode
+                                    ? _darkTextSecondary
+                                    : Colors.grey.shade500,
                                 fontSize: 10,
                               ),
                             ),
@@ -685,11 +754,17 @@ class _CreateStoryPageState extends State<CreateStoryPage> {
                 style: TextStyle(color: isDarkMode ? _darkText : Colors.black),
                 decoration: InputDecoration(
                   hintText: 'Story Title',
-                  hintStyle: TextStyle(color: isDarkMode ? _darkTextSecondary : Colors.grey.shade500),
+                  hintStyle: TextStyle(
+                    color: isDarkMode
+                        ? _darkTextSecondary
+                        : Colors.grey.shade500,
+                  ),
                   border: InputBorder.none,
                 ),
               ),
-              Divider(color: isDarkMode ? Colors.grey.shade800 : Colors.grey.shade300),
+              Divider(
+                color: isDarkMode ? Colors.grey.shade800 : Colors.grey.shade300,
+              ),
 
               // Description
               TextField(
@@ -698,7 +773,11 @@ class _CreateStoryPageState extends State<CreateStoryPage> {
                 maxLines: 3,
                 decoration: InputDecoration(
                   hintText: 'Give a description of your story',
-                  hintStyle: TextStyle(color: isDarkMode ? _darkTextSecondary : Colors.grey.shade500),
+                  hintStyle: TextStyle(
+                    color: isDarkMode
+                        ? _darkTextSecondary
+                        : Colors.grey.shade500,
+                  ),
                   border: InputBorder.none,
                 ),
               ),
@@ -732,11 +811,11 @@ class EditStoryPage extends StatefulWidget {
   final VoidCallback onUpdated;
 
   const EditStoryPage({
-    Key? key,
+    super.key,
     required this.book,
     required this.firestoreService,
     required this.onUpdated,
-  }) : super(key: key);
+  });
   @override
   State<EditStoryPage> createState() => _EditStoryPageState();
 }
@@ -772,11 +851,12 @@ class _EditStoryPageState extends State<EditStoryPage> {
     final chapters = await widget.firestoreService.getChaptersByBook(
       widget.book.id,
     );
-    if (mounted)
+    if (mounted) {
       setState(() {
         _chapters = chapters;
         _loading = false;
       });
+    }
   }
 
   @override
@@ -826,9 +906,9 @@ class _EditStoryPageState extends State<EditStoryPage> {
 
     widget.onUpdated();
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Saved')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Saved')));
     }
   }
 
@@ -838,7 +918,9 @@ class _EditStoryPageState extends State<EditStoryPage> {
       // Publishing - check if has at least one chapter
       if (_chapters.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Add at least one chapter before publishing')),
+          const SnackBar(
+            content: Text('Add at least one chapter before publishing'),
+          ),
         );
         return;
       }
@@ -847,15 +929,25 @@ class _EditStoryPageState extends State<EditStoryPage> {
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: isDarkMode ? _darkCard : Colors.white,
-          title: Text('Publish Story', style: TextStyle(color: isDarkMode ? _darkText : Colors.black)),
+          title: Text(
+            'Publish Story',
+            style: TextStyle(color: isDarkMode ? _darkText : Colors.black),
+          ),
           content: Text(
             'Are you sure you want to publish "${_titleController.text}"? It will be visible to all readers.',
-            style: TextStyle(color: isDarkMode ? _darkTextSecondary : Colors.grey.shade700),
+            style: TextStyle(
+              color: isDarkMode ? _darkTextSecondary : Colors.grey.shade700,
+            ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: Text('Cancel', style: TextStyle(color: isDarkMode ? _darkTextSecondary : Colors.grey)),
+              child: Text(
+                'Cancel',
+                style: TextStyle(
+                  color: isDarkMode ? _darkTextSecondary : Colors.grey,
+                ),
+              ),
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(ctx, true),
@@ -870,9 +962,9 @@ class _EditStoryPageState extends State<EditStoryPage> {
         setState(() => _isDraft = false);
         widget.onUpdated();
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Story published!')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Story published!')));
         }
       }
     } else {
@@ -881,19 +973,31 @@ class _EditStoryPageState extends State<EditStoryPage> {
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: isDarkMode ? _darkCard : Colors.white,
-          title: Text('Unpublish Story', style: TextStyle(color: isDarkMode ? _darkText : Colors.black)),
+          title: Text(
+            'Unpublish Story',
+            style: TextStyle(color: isDarkMode ? _darkText : Colors.black),
+          ),
           content: Text(
             'Are you sure you want to unpublish "${_titleController.text}"? It will be moved back to drafts.',
-            style: TextStyle(color: isDarkMode ? _darkTextSecondary : Colors.grey.shade700),
+            style: TextStyle(
+              color: isDarkMode ? _darkTextSecondary : Colors.grey.shade700,
+            ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: Text('Cancel', style: TextStyle(color: isDarkMode ? _darkTextSecondary : Colors.grey)),
+              child: Text(
+                'Cancel',
+                style: TextStyle(
+                  color: isDarkMode ? _darkTextSecondary : Colors.grey,
+                ),
+              ),
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(ctx, true),
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE57373)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFE57373),
+              ),
               child: const Text('Unpublish'),
             ),
           ],
@@ -953,12 +1057,19 @@ class _EditStoryPageState extends State<EditStoryPage> {
         ),
         content: Text(
           'Are you sure you want to delete "${widget.book.title}"? This will also delete all chapters and cannot be undone.',
-          style: TextStyle(color: isDarkMode ? _darkTextSecondary : Colors.grey.shade700),
+          style: TextStyle(
+            color: isDarkMode ? _darkTextSecondary : Colors.grey.shade700,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel', style: TextStyle(color: isDarkMode ? _darkTextSecondary : Colors.grey)),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                color: isDarkMode ? _darkTextSecondary : Colors.grey,
+              ),
+            ),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -990,7 +1101,9 @@ class _EditStoryPageState extends State<EditStoryPage> {
 
   void _showDeleteChapterDialog(dynamic chapter) {
     final isDarkMode = themeService.isDarkMode;
-    final title = chapter.title.isEmpty ? 'Part ${chapter.chapterNumber}' : chapter.title;
+    final title = chapter.title.isEmpty
+        ? 'Part ${chapter.chapterNumber}'
+        : chapter.title;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -1001,12 +1114,19 @@ class _EditStoryPageState extends State<EditStoryPage> {
         ),
         content: Text(
           'Are you sure you want to delete "$title"? This cannot be undone.',
-          style: TextStyle(color: isDarkMode ? _darkTextSecondary : Colors.grey.shade700),
+          style: TextStyle(
+            color: isDarkMode ? _darkTextSecondary : Colors.grey.shade700,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel', style: TextStyle(color: isDarkMode ? _darkTextSecondary : Colors.grey)),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                color: isDarkMode ? _darkTextSecondary : Colors.grey,
+              ),
+            ),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -1041,7 +1161,9 @@ class _EditStoryPageState extends State<EditStoryPage> {
     return Theme(
       data: isDarkMode
           ? ThemeData.dark().copyWith(scaffoldBackgroundColor: _darkBg)
-          : ThemeData.light().copyWith(scaffoldBackgroundColor: Colors.grey.shade100),
+          : ThemeData.light().copyWith(
+              scaffoldBackgroundColor: Colors.grey.shade100,
+            ),
       child: Scaffold(
         appBar: AppBar(
           backgroundColor: isDarkMode ? _darkBg : Colors.white,
@@ -1063,7 +1185,11 @@ class _EditStoryPageState extends State<EditStoryPage> {
                 ),
                 child: Text(
                   _isDraft ? 'DRAFT' : 'PUBLISHED',
-                  style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ],
@@ -1094,10 +1220,18 @@ class _EditStoryPageState extends State<EditStoryPage> {
                         width: double.infinity,
                         child: ElevatedButton.icon(
                           onPressed: _togglePublish,
-                          icon: Icon(_isDraft ? Icons.publish : Icons.unpublished_outlined),
-                          label: Text(_isDraft ? 'Publish Story' : 'Unpublish Story'),
+                          icon: Icon(
+                            _isDraft
+                                ? Icons.publish
+                                : Icons.unpublished_outlined,
+                          ),
+                          label: Text(
+                            _isDraft ? 'Publish Story' : 'Unpublish Story',
+                          ),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: _isDraft ? _accentColor : const Color(0xFFE57373),
+                            backgroundColor: _isDraft
+                                ? _accentColor
+                                : const Color(0xFFE57373),
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(
@@ -1119,7 +1253,11 @@ class _EditStoryPageState extends State<EditStoryPage> {
                           decoration: BoxDecoration(
                             color: isDarkMode ? _darkCard : Colors.white,
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: isDarkMode ? Colors.grey.shade700 : Colors.grey.shade300),
+                            border: Border.all(
+                              color: isDarkMode
+                                  ? Colors.grey.shade700
+                                  : Colors.grey.shade300,
+                            ),
                           ),
                           child: _newCover != null
                               ? ClipRRect(
@@ -1140,13 +1278,17 @@ class _EditStoryPageState extends State<EditStoryPage> {
                                   children: [
                                     Icon(
                                       Icons.add_circle_outline,
-                                      color: isDarkMode ? _darkTextSecondary : Colors.grey.shade500,
+                                      color: isDarkMode
+                                          ? _darkTextSecondary
+                                          : Colors.grey.shade500,
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
                                       'Add a cover',
                                       style: TextStyle(
-                                        color: isDarkMode ? _darkTextSecondary : Colors.grey.shade500,
+                                        color: isDarkMode
+                                            ? _darkTextSecondary
+                                            : Colors.grey.shade500,
                                         fontSize: 10,
                                       ),
                                     ),
@@ -1164,12 +1306,18 @@ class _EditStoryPageState extends State<EditStoryPage> {
                     ListTile(
                       title: Text(
                         'Category *',
-                        style: TextStyle(color: isDarkMode ? _darkText : Colors.black),
+                        style: TextStyle(
+                          color: isDarkMode ? _darkText : Colors.black,
+                        ),
                       ),
                       trailing: DropdownButton<String>(
                         value: _category,
                         dropdownColor: isDarkMode ? _darkCard : Colors.white,
-                        style: TextStyle(color: isDarkMode ? _darkTextSecondary : Colors.grey.shade700),
+                        style: TextStyle(
+                          color: isDarkMode
+                              ? _darkTextSecondary
+                              : Colors.grey.shade700,
+                        ),
                         underline: const SizedBox(),
                         items: _categories
                             .map(
@@ -1181,7 +1329,12 @@ class _EditStoryPageState extends State<EditStoryPage> {
                         },
                       ),
                     ),
-                    Divider(color: isDarkMode ? Colors.grey.shade800 : Colors.grey.shade300, height: 1),
+                    Divider(
+                      color: isDarkMode
+                          ? Colors.grey.shade800
+                          : Colors.grey.shade300,
+                      height: 1,
+                    ),
 
                     _buildField(
                       'Tags',
@@ -1193,36 +1346,54 @@ class _EditStoryPageState extends State<EditStoryPage> {
                     SwitchListTile(
                       title: Text(
                         'Mature',
-                        style: TextStyle(color: isDarkMode ? _darkText : Colors.black),
+                        style: TextStyle(
+                          color: isDarkMode ? _darkText : Colors.black,
+                        ),
                       ),
                       subtitle: Text(
                         'Your story is appropriate for all audiences.',
                         style: TextStyle(
-                          color: isDarkMode ? _darkTextSecondary : Colors.grey.shade600,
+                          color: isDarkMode
+                              ? _darkTextSecondary
+                              : Colors.grey.shade600,
                           fontSize: 12,
                         ),
                       ),
                       value: _isMature,
-                      activeColor: _accentColor,
+                      activeThumbColor: _accentColor,
                       onChanged: (v) => setState(() => _isMature = v),
                     ),
-                    Divider(color: isDarkMode ? Colors.grey.shade800 : Colors.grey.shade300, height: 1),
+                    Divider(
+                      color: isDarkMode
+                          ? Colors.grey.shade800
+                          : Colors.grey.shade300,
+                      height: 1,
+                    ),
 
                     // Completed toggle
                     SwitchListTile(
                       title: Text(
                         'Completed',
-                        style: TextStyle(color: isDarkMode ? _darkText : Colors.black),
+                        style: TextStyle(
+                          color: isDarkMode ? _darkText : Colors.black,
+                        ),
                       ),
                       value: _isCompleted,
-                      activeColor: _accentColor,
+                      activeThumbColor: _accentColor,
                       onChanged: (v) => setState(() => _isCompleted = v),
                     ),
-                    Divider(color: isDarkMode ? Colors.grey.shade800 : Colors.grey.shade300, height: 1),
+                    Divider(
+                      color: isDarkMode
+                          ? Colors.grey.shade800
+                          : Colors.grey.shade300,
+                      height: 1,
+                    ),
 
                     // Table of contents
                     Container(
-                      color: isDarkMode ? Colors.grey.shade900 : Colors.grey.shade200,
+                      color: isDarkMode
+                          ? Colors.grey.shade900
+                          : Colors.grey.shade200,
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
                         vertical: 12,
@@ -1239,7 +1410,9 @@ class _EditStoryPageState extends State<EditStoryPage> {
                           ),
                           Icon(
                             Icons.settings,
-                            color: isDarkMode ? _darkTextSecondary : Colors.grey.shade600,
+                            color: isDarkMode
+                                ? _darkTextSecondary
+                                : Colors.grey.shade600,
                             size: 20,
                           ),
                         ],
@@ -1252,7 +1425,11 @@ class _EditStoryPageState extends State<EditStoryPage> {
                         padding: const EdgeInsets.all(16),
                         child: Text(
                           'No parts yet',
-                          style: TextStyle(color: isDarkMode ? _darkTextSecondary : Colors.grey.shade600),
+                          style: TextStyle(
+                            color: isDarkMode
+                                ? _darkTextSecondary
+                                : Colors.grey.shade600,
+                          ),
                         ),
                       )
                     else
@@ -1262,12 +1439,16 @@ class _EditStoryPageState extends State<EditStoryPage> {
                             ch.title.isEmpty
                                 ? 'Part ${ch.chapterNumber}'
                                 : ch.title,
-                            style: TextStyle(color: isDarkMode ? _darkText : Colors.black),
+                            style: TextStyle(
+                              color: isDarkMode ? _darkText : Colors.black,
+                            ),
                           ),
                           subtitle: Text(
                             'Part ${ch.chapterNumber}',
                             style: TextStyle(
-                              color: isDarkMode ? _darkTextSecondary : Colors.grey.shade600,
+                              color: isDarkMode
+                                  ? _darkTextSecondary
+                                  : Colors.grey.shade600,
                               fontSize: 12,
                             ),
                           ),
@@ -1275,13 +1456,19 @@ class _EditStoryPageState extends State<EditStoryPage> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               IconButton(
-                                icon: Icon(Icons.delete_outline, color: Colors.red.shade400, size: 20),
+                                icon: Icon(
+                                  Icons.delete_outline,
+                                  color: Colors.red.shade400,
+                                  size: 20,
+                                ),
                                 onPressed: () => _showDeleteChapterDialog(ch),
                                 tooltip: 'Delete chapter',
                               ),
                               Icon(
                                 Icons.chevron_right,
-                                color: isDarkMode ? _darkTextSecondary : Colors.grey.shade600,
+                                color: isDarkMode
+                                    ? _darkTextSecondary
+                                    : Colors.grey.shade600,
                               ),
                             ],
                           ),
@@ -1325,11 +1512,20 @@ class _EditStoryPageState extends State<EditStoryPage> {
     return Column(
       children: [
         ListTile(
-          title: Text(label, style: TextStyle(color: isDarkMode ? _darkText : Colors.black)),
-          trailing: Icon(Icons.chevron_right, color: isDarkMode ? _darkTextSecondary : Colors.grey.shade600),
+          title: Text(
+            label,
+            style: TextStyle(color: isDarkMode ? _darkText : Colors.black),
+          ),
+          trailing: Icon(
+            Icons.chevron_right,
+            color: isDarkMode ? _darkTextSecondary : Colors.grey.shade600,
+          ),
           onTap: () => _showFieldEditor(label, controller, maxLines: maxLines),
         ),
-        Divider(color: isDarkMode ? Colors.grey.shade800 : Colors.grey.shade300, height: 1),
+        Divider(
+          color: isDarkMode ? Colors.grey.shade800 : Colors.grey.shade300,
+          height: 1,
+        ),
       ],
     );
   }
@@ -1406,13 +1602,13 @@ class PartEditorPage extends StatefulWidget {
   final VoidCallback onSaved;
 
   const PartEditorPage({
-    Key? key,
+    super.key,
     required this.bookId,
     required this.firestoreService,
     this.chapter,
     required this.chapterNumber,
     required this.onSaved,
-  }) : super(key: key);
+  });
 
   @override
   State<PartEditorPage> createState() => _PartEditorPageState();
@@ -1472,10 +1668,11 @@ class _PartEditorPageState extends State<PartEditorPage> {
         Navigator.pop(context);
       }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -1536,43 +1733,52 @@ class _PartEditorPageState extends State<PartEditorPage> {
     final List<TextSpan> spans = [];
     final RegExp pattern = RegExp(r'\*\*(.+?)\*\*|_(.+?)_|<u>(.+?)</u>');
     final textColor = isDarkMode ? _darkText : Colors.black;
-    
+
     int lastEnd = 0;
     for (final match in pattern.allMatches(text)) {
       // Add plain text before match
       if (match.start > lastEnd) {
         spans.add(TextSpan(text: text.substring(lastEnd, match.start)));
       }
-      
+
       // Determine formatting type and add styled span
       if (match.group(1) != null) {
         // Bold **text**
-        spans.add(TextSpan(
-          text: match.group(1),
-          style: TextStyle(fontWeight: FontWeight.bold, color: textColor),
-        ));
+        spans.add(
+          TextSpan(
+            text: match.group(1),
+            style: TextStyle(fontWeight: FontWeight.bold, color: textColor),
+          ),
+        );
       } else if (match.group(2) != null) {
         // Italic _text_
-        spans.add(TextSpan(
-          text: match.group(2),
-          style: TextStyle(fontStyle: FontStyle.italic, color: textColor),
-        ));
+        spans.add(
+          TextSpan(
+            text: match.group(2),
+            style: TextStyle(fontStyle: FontStyle.italic, color: textColor),
+          ),
+        );
       } else if (match.group(3) != null) {
         // Underline <u>text</u>
-        spans.add(TextSpan(
-          text: match.group(3),
-          style: TextStyle(decoration: TextDecoration.underline, color: textColor),
-        ));
+        spans.add(
+          TextSpan(
+            text: match.group(3),
+            style: TextStyle(
+              decoration: TextDecoration.underline,
+              color: textColor,
+            ),
+          ),
+        );
       }
-      
+
       lastEnd = match.end;
     }
-    
+
     // Add remaining plain text
     if (lastEnd < text.length) {
       spans.add(TextSpan(text: text.substring(lastEnd)));
     }
-    
+
     return spans.isEmpty ? [TextSpan(text: text)] : spans;
   }
 
@@ -1582,7 +1788,9 @@ class _PartEditorPageState extends State<PartEditorPage> {
     return Theme(
       data: isDarkMode
           ? ThemeData.dark().copyWith(scaffoldBackgroundColor: _darkBg)
-          : ThemeData.light().copyWith(scaffoldBackgroundColor: Colors.grey.shade100),
+          : ThemeData.light().copyWith(
+              scaffoldBackgroundColor: Colors.grey.shade100,
+            ),
       child: Scaffold(
         appBar: AppBar(
           backgroundColor: isDarkMode ? _darkBg : Colors.white,
@@ -1610,8 +1818,8 @@ class _PartEditorPageState extends State<PartEditorPage> {
               child: Text(
                 'Publish',
                 style: TextStyle(
-                  color: _saving 
-                      ? (isDarkMode ? _darkTextSecondary : Colors.grey) 
+                  color: _saving
+                      ? (isDarkMode ? _darkTextSecondary : Colors.grey)
                       : (isDarkMode ? _darkText : Colors.black),
                 ),
               ),
@@ -1625,7 +1833,13 @@ class _PartEditorPageState extends State<PartEditorPage> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
                 color: isDarkMode ? _darkCard : Colors.white,
-                border: Border(bottom: BorderSide(color: isDarkMode ? Colors.grey.shade800 : Colors.grey.shade300)),
+                border: Border(
+                  bottom: BorderSide(
+                    color: isDarkMode
+                        ? Colors.grey.shade800
+                        : Colors.grey.shade300,
+                  ),
+                ),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -1661,7 +1875,9 @@ class _PartEditorPageState extends State<PartEditorPage> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: isDarkMode ? Colors.grey.shade600 : Colors.grey.shade400,
+                  color: isDarkMode
+                      ? Colors.grey.shade600
+                      : Colors.grey.shade400,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -1683,14 +1899,22 @@ class _PartEditorPageState extends State<PartEditorPage> {
                       textAlign: TextAlign.center,
                       decoration: InputDecoration(
                         hintText: 'Part title',
-                        hintStyle: TextStyle(color: isDarkMode ? const Color(0xFF555555) : Colors.grey.shade500),
+                        hintStyle: TextStyle(
+                          color: isDarkMode
+                              ? const Color(0xFF555555)
+                              : Colors.grey.shade500,
+                        ),
                         border: InputBorder.none,
                       ),
                     ),
-                    Divider(color: isDarkMode ? Colors.grey.shade800 : Colors.grey.shade300),
-                    
+                    Divider(
+                      color: isDarkMode
+                          ? Colors.grey.shade800
+                          : Colors.grey.shade300,
+                    ),
+
                     const SizedBox(height: 16),
-                    
+
                     // Formatted preview card (tap to edit)
                     GestureDetector(
                       onTap: _showContentEditor,
@@ -1701,20 +1925,38 @@ class _PartEditorPageState extends State<PartEditorPage> {
                         decoration: BoxDecoration(
                           color: isDarkMode ? _darkCard : Colors.white,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: isDarkMode ? Colors.grey.shade700 : Colors.grey.shade300),
+                          border: Border.all(
+                            color: isDarkMode
+                                ? Colors.grey.shade700
+                                : Colors.grey.shade300,
+                          ),
                         ),
                         child: _contentController.text.isEmpty
                             ? Center(
                                 child: Text(
                                   'Tap here to write your story...',
-                                  style: TextStyle(color: isDarkMode ? const Color(0xFF555555) : Colors.grey.shade500, fontSize: 16),
+                                  style: TextStyle(
+                                    color: isDarkMode
+                                        ? const Color(0xFF555555)
+                                        : Colors.grey.shade500,
+                                    fontSize: 16,
+                                  ),
                                 ),
                               )
                             : RichText(
                                 textAlign: TextAlign.left,
                                 text: TextSpan(
-                                  style: TextStyle(color: isDarkMode ? _darkText : Colors.black, fontSize: 16, height: 1.6),
-                                  children: _buildFormattedText(_contentController.text, isDarkMode),
+                                  style: TextStyle(
+                                    color: isDarkMode
+                                        ? _darkText
+                                        : Colors.black,
+                                    fontSize: 16,
+                                    height: 1.6,
+                                  ),
+                                  children: _buildFormattedText(
+                                    _contentController.text,
+                                    isDarkMode,
+                                  ),
                                 ),
                               ),
                       ),
@@ -1753,11 +1995,38 @@ class _PartEditorPageState extends State<PartEditorPage> {
               children: [
                 Row(
                   children: [
-                    _FormatButton(icon: Icons.format_bold, tooltip: 'Bold', onPressed: () { _toggleBold(); Navigator.pop(ctx); _showContentEditor(); }, isDarkMode: isDarkMode),
+                    _FormatButton(
+                      icon: Icons.format_bold,
+                      tooltip: 'Bold',
+                      onPressed: () {
+                        _toggleBold();
+                        Navigator.pop(ctx);
+                        _showContentEditor();
+                      },
+                      isDarkMode: isDarkMode,
+                    ),
                     const SizedBox(width: 8),
-                    _FormatButton(icon: Icons.format_italic, tooltip: 'Italic', onPressed: () { _toggleItalic(); Navigator.pop(ctx); _showContentEditor(); }, isDarkMode: isDarkMode),
+                    _FormatButton(
+                      icon: Icons.format_italic,
+                      tooltip: 'Italic',
+                      onPressed: () {
+                        _toggleItalic();
+                        Navigator.pop(ctx);
+                        _showContentEditor();
+                      },
+                      isDarkMode: isDarkMode,
+                    ),
                     const SizedBox(width: 8),
-                    _FormatButton(icon: Icons.format_underline, tooltip: 'Underline', onPressed: () { _toggleUnderline(); Navigator.pop(ctx); _showContentEditor(); }, isDarkMode: isDarkMode),
+                    _FormatButton(
+                      icon: Icons.format_underline,
+                      tooltip: 'Underline',
+                      onPressed: () {
+                        _toggleUnderline();
+                        Navigator.pop(ctx);
+                        _showContentEditor();
+                      },
+                      isDarkMode: isDarkMode,
+                    ),
                   ],
                 ),
                 TextButton(
@@ -1765,7 +2034,10 @@ class _PartEditorPageState extends State<PartEditorPage> {
                     Navigator.pop(ctx);
                     setState(() {});
                   },
-                  child: const Text('Done', style: TextStyle(color: _accentColor)),
+                  child: const Text(
+                    'Done',
+                    style: TextStyle(color: _accentColor),
+                  ),
                 ),
               ],
             ),
@@ -1774,10 +2046,17 @@ class _PartEditorPageState extends State<PartEditorPage> {
               controller: _contentController,
               autofocus: true,
               maxLines: 12,
-              style: TextStyle(color: isDarkMode ? _darkText : Colors.black, fontSize: 16),
+              style: TextStyle(
+                color: isDarkMode ? _darkText : Colors.black,
+                fontSize: 16,
+              ),
               decoration: InputDecoration(
                 hintText: 'Write your story here...',
-                hintStyle: TextStyle(color: isDarkMode ? const Color(0xFF555555) : Colors.grey.shade500),
+                hintStyle: TextStyle(
+                  color: isDarkMode
+                      ? const Color(0xFF555555)
+                      : Colors.grey.shade500,
+                ),
                 filled: true,
                 fillColor: isDarkMode ? _darkCard : Colors.grey.shade100,
                 border: OutlineInputBorder(
@@ -1821,7 +2100,11 @@ class _FormatButton extends StatelessWidget {
             color: isDarkMode ? Colors.grey.shade800 : Colors.grey.shade200,
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Icon(icon, color: isDarkMode ? _darkText : Colors.black, size: 22),
+          child: Icon(
+            icon,
+            color: isDarkMode ? _darkText : Colors.black,
+            size: 22,
+          ),
         ),
       ),
     );
@@ -1831,7 +2114,7 @@ class _FormatButton extends StatelessWidget {
 // ==================== PROFILE PAGE ====================
 class ProfilePage extends StatefulWidget {
   final AuthService authService;
-  const ProfilePage({Key? key, required this.authService}) : super(key: key);
+  const ProfilePage({super.key, required this.authService});
   @override
   State<ProfilePage> createState() => _ProfilePageState();
 }
@@ -1862,9 +2145,9 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _updateNickname() async {
     if (_nicknameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nickname cannot be empty')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Nickname cannot be empty')));
       return;
     }
     setState(() => _savingNickname = true);
@@ -1883,9 +2166,9 @@ class _ProfilePageState extends State<ProfilePage> {
     } catch (e) {
       setState(() => _savingNickname = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error updating nickname: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error updating nickname: $e')));
       }
     }
   }
@@ -1904,7 +2187,10 @@ class _ProfilePageState extends State<ProfilePage> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           backgroundColor: _darkCard,
-          title: const Text('Change Password', style: TextStyle(color: _darkText)),
+          title: const Text(
+            'Change Password',
+            style: TextStyle(color: _darkText),
+          ),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -1929,7 +2215,8 @@ class _ProfilePageState extends State<ProfilePage> {
                         obscureOld ? Icons.visibility_off : Icons.visibility,
                         color: _darkTextSecondary,
                       ),
-                      onPressed: () => setDialogState(() => obscureOld = !obscureOld),
+                      onPressed: () =>
+                          setDialogState(() => obscureOld = !obscureOld),
                     ),
                   ),
                 ),
@@ -1954,7 +2241,8 @@ class _ProfilePageState extends State<ProfilePage> {
                         obscureNew ? Icons.visibility_off : Icons.visibility,
                         color: _darkTextSecondary,
                       ),
-                      onPressed: () => setDialogState(() => obscureNew = !obscureNew),
+                      onPressed: () =>
+                          setDialogState(() => obscureNew = !obscureNew),
                     ),
                   ),
                 ),
@@ -1976,10 +2264,14 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                     suffixIcon: IconButton(
                       icon: Icon(
-                        obscureConfirm ? Icons.visibility_off : Icons.visibility,
+                        obscureConfirm
+                            ? Icons.visibility_off
+                            : Icons.visibility,
                         color: _darkTextSecondary,
                       ),
-                      onPressed: () => setDialogState(() => obscureConfirm = !obscureConfirm),
+                      onPressed: () => setDialogState(
+                        () => obscureConfirm = !obscureConfirm,
+                      ),
                     ),
                   ),
                 ),
@@ -1989,7 +2281,10 @@ class _ProfilePageState extends State<ProfilePage> {
           actions: [
             TextButton(
               onPressed: loading ? null : () => Navigator.pop(ctx),
-              child: Text('Cancel', style: TextStyle(color: Colors.grey.shade400)),
+              child: Text(
+                'Cancel',
+                style: TextStyle(color: Colors.grey.shade400),
+              ),
             ),
             ElevatedButton(
               onPressed: loading
@@ -1999,19 +2294,28 @@ class _ProfilePageState extends State<ProfilePage> {
                           newPasswordController.text.isEmpty ||
                           confirmPasswordController.text.isEmpty) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Please fill all fields')),
+                          const SnackBar(
+                            content: Text('Please fill all fields'),
+                          ),
                         );
                         return;
                       }
-                      if (newPasswordController.text != confirmPasswordController.text) {
+                      if (newPasswordController.text !=
+                          confirmPasswordController.text) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('New passwords do not match')),
+                          const SnackBar(
+                            content: Text('New passwords do not match'),
+                          ),
                         );
                         return;
                       }
                       if (newPasswordController.text.length < 6) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Password must be at least 6 characters')),
+                          const SnackBar(
+                            content: Text(
+                              'Password must be at least 6 characters',
+                            ),
+                          ),
                         );
                         return;
                       }
@@ -2024,14 +2328,16 @@ class _ProfilePageState extends State<ProfilePage> {
                           password: oldPasswordController.text,
                         );
                         await user?.reauthenticateWithCredential(credential);
-                        
+
                         // Update password
                         await user?.updatePassword(newPasswordController.text);
-                        
+
                         Navigator.pop(ctx);
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Password changed successfully')),
+                            const SnackBar(
+                              content: Text('Password changed successfully'),
+                            ),
                           );
                         }
                       } on FirebaseAuthException catch (e) {
@@ -2042,24 +2348,25 @@ class _ProfilePageState extends State<ProfilePage> {
                         } else if (e.code == 'weak-password') {
                           message = 'New password is too weak';
                         }
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(message)),
-                        );
+                        ScaffoldMessenger.of(
+                          context,
+                        ).showSnackBar(SnackBar(content: Text(message)));
                       } catch (e) {
                         setDialogState(() => loading = false);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Error: $e')),
-                        );
+                        ScaffoldMessenger.of(
+                          context,
+                        ).showSnackBar(SnackBar(content: Text('Error: $e')));
                       }
                     },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _accentColor,
-              ),
+              style: ElevatedButton.styleFrom(backgroundColor: _accentColor),
               child: loading
                   ? const SizedBox(
                       width: 20,
                       height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
                     )
                   : const Text('Change Password'),
             ),
@@ -2075,7 +2382,9 @@ class _ProfilePageState extends State<ProfilePage> {
     return Theme(
       data: isDarkMode
           ? ThemeData.dark().copyWith(scaffoldBackgroundColor: _darkBg)
-          : ThemeData.light().copyWith(scaffoldBackgroundColor: Colors.grey.shade100),
+          : ThemeData.light().copyWith(
+              scaffoldBackgroundColor: Colors.grey.shade100,
+            ),
       child: Scaffold(
         appBar: AppBar(
           backgroundColor: isDarkMode ? _darkBg : Colors.white,
@@ -2094,7 +2403,9 @@ class _ProfilePageState extends State<ProfilePage> {
                   children: [
                     CircleAvatar(
                       radius: 50,
-                      backgroundColor: isDarkMode ? Colors.grey.shade700 : Colors.grey.shade300,
+                      backgroundColor: isDarkMode
+                          ? Colors.grey.shade700
+                          : Colors.grey.shade300,
                       child: Icon(
                         Icons.person,
                         size: 56,
@@ -2102,7 +2413,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    
+
                     // Nickname (editable)
                     if (_editingNickname)
                       Row(
@@ -2120,13 +2431,18 @@ class _ProfilePageState extends State<ProfilePage> {
                               textAlign: TextAlign.center,
                               decoration: InputDecoration(
                                 isDense: true,
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(8),
-                                  borderSide: const BorderSide(color: _accentColor),
+                                  borderSide: const BorderSide(
+                                    color: _accentColor,
+                                  ),
                                 ),
                               ),
                             ),
@@ -2140,7 +2456,10 @@ class _ProfilePageState extends State<ProfilePage> {
                             )
                           else ...[
                             IconButton(
-                              icon: const Icon(Icons.check, color: Colors.green),
+                              icon: const Icon(
+                                Icons.check,
+                                color: Colors.green,
+                              ),
                               onPressed: _updateNickname,
                             ),
                             IconButton(
@@ -2148,7 +2467,8 @@ class _ProfilePageState extends State<ProfilePage> {
                               onPressed: () {
                                 setState(() {
                                   _editingNickname = false;
-                                  _nicknameController.text = user?.displayName ?? '';
+                                  _nicknameController.text =
+                                      user?.displayName ?? '';
                                 });
                               },
                             ),
@@ -2173,14 +2493,16 @@ class _ProfilePageState extends State<ProfilePage> {
                             Icon(
                               Icons.edit,
                               size: 18,
-                              color: isDarkMode ? _darkTextSecondary : Colors.grey,
+                              color: isDarkMode
+                                  ? _darkTextSecondary
+                                  : Colors.grey,
                             ),
                           ],
                         ),
                       ),
-                    
+
                     const SizedBox(height: 8),
-                    
+
                     // Email (non-editable)
                     Row(
                       mainAxisSize: MainAxisSize.min,
@@ -2194,7 +2516,9 @@ class _ProfilePageState extends State<ProfilePage> {
                         Text(
                           user?.email ?? '',
                           style: TextStyle(
-                            color: isDarkMode ? _darkTextSecondary : Colors.grey.shade600,
+                            color: isDarkMode
+                                ? _darkTextSecondary
+                                : Colors.grey.shade600,
                             fontSize: 14,
                           ),
                         ),
@@ -2230,12 +2554,14 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                   title: Text(
                     'Dark Mode',
-                    style: TextStyle(color: isDarkMode ? _darkText : Colors.black),
+                    style: TextStyle(
+                      color: isDarkMode ? _darkText : Colors.black,
+                    ),
                   ),
                   trailing: Switch(
                     value: isDarkMode,
                     onChanged: (val) => themeService.setDarkMode(val),
-                    activeColor: _accentColor,
+                    activeThumbColor: _accentColor,
                   ),
                 ),
               ),
@@ -2255,7 +2581,9 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                   title: Text(
                     'Change Password',
-                    style: TextStyle(color: isDarkMode ? _darkText : Colors.black),
+                    style: TextStyle(
+                      color: isDarkMode ? _darkText : Colors.black,
+                    ),
                   ),
                   trailing: Icon(
                     Icons.chevron_right,
