@@ -2879,16 +2879,175 @@ class _WriterNotificationsPage extends StatefulWidget {
 
 class _WriterNotificationsPageState extends State<_WriterNotificationsPage> {
   late Future<List<NotificationModel>> _notifications;
+  String? _writerNickname;
 
   @override
   void initState() {
     super.initState();
     _loadNotifications();
+    _loadWriterNickname();
   }
 
   void _loadNotifications() {
     _notifications = widget.firestoreService.getUserNotifications(
       widget.userId,
+    );
+  }
+
+  void _loadWriterNickname() async {
+    final user = await widget.firestoreService.getUserById(widget.userId);
+    if (mounted) {
+      setState(() {
+        _writerNickname = user?.nickname ?? 'Writer';
+      });
+    }
+  }
+
+  void _handleNotificationTap(NotificationModel notif) async {
+    // Mark as read
+    if (!notif.read) {
+      await widget.firestoreService.markNotificationAsRead(notif.id);
+      setState(() => _loadNotifications());
+    }
+
+    // Handle comment notifications - show reply dialog
+    if (notif.type == 'comment' && notif.commentText != null) {
+      _showCommentWithReplyDialog(notif);
+    }
+  }
+
+  void _showCommentWithReplyDialog(NotificationModel notif) {
+    final isDarkMode = themeService.isDarkMode;
+    final replyController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: isDarkMode ? _darkCard : Colors.white,
+        title: Row(
+          children: [
+            CircleAvatar(
+              backgroundColor: _accentColor.withValues(alpha: 0.2),
+              radius: 16,
+              child: Text(
+                (notif.fromUserNickname ?? 'S')[0].toUpperCase(),
+                style: const TextStyle(
+                  color: _accentColor,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                notif.fromUserNickname ?? 'Someone',
+                style: TextStyle(
+                  color: isDarkMode ? _darkText : Colors.black,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Comment text
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isDarkMode ? _darkBg : Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                notif.commentText!,
+                style: TextStyle(
+                  color: isDarkMode ? _darkTextSecondary : Colors.grey.shade700,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+            if (notif.chapterNumber != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                'On Part ${notif.chapterNumber}',
+                style: TextStyle(
+                  color: isDarkMode ? _darkTextSecondary : Colors.grey.shade500,
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            // Reply input
+            TextField(
+              controller: replyController,
+              maxLines: 3,
+              style: TextStyle(color: isDarkMode ? _darkText : Colors.black),
+              decoration: InputDecoration(
+                hintText: 'Write a reply...',
+                hintStyle: TextStyle(
+                  color: isDarkMode ? _darkTextSecondary : Colors.grey,
+                ),
+                filled: true,
+                fillColor: isDarkMode ? _darkBg : Colors.grey.shade100,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.all(12),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Close',
+              style: TextStyle(
+                color: isDarkMode ? _darkTextSecondary : Colors.grey,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _accentColor,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              if (replyController.text.trim().isEmpty) return;
+
+              Navigator.pop(context);
+
+              // Send reply as a comment with parentCommentId
+              if (notif.bookId != null && notif.commentId != null) {
+                await widget.firestoreService.addComment(
+                  notif.bookId!,
+                  widget.userId,
+                  replyController.text.trim(),
+                  chapterId: notif.chapterId,
+                  userNickname: _writerNickname ?? 'Writer',
+                  parentCommentId: notif.commentId,
+                );
+
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Reply sent!'),
+                      backgroundColor: _accentColor,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Reply'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -3049,6 +3208,17 @@ class _WriterNotificationsPageState extends State<_WriterNotificationsPage> {
                             fontSize: 13,
                           ),
                         ),
+                        if (notif.chapterNumber != null) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            'Part ${notif.chapterNumber}',
+                            style: TextStyle(
+                              color: _accentColor,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 4),
                         Text(
                           _formatTimeAgo(notif.createdAt),
@@ -3061,9 +3231,21 @@ class _WriterNotificationsPageState extends State<_WriterNotificationsPage> {
                         ),
                       ],
                     ),
-                    trailing: notif.read
-                        ? null
-                        : Container(
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (notif.type == 'comment' &&
+                            notif.commentText != null)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: Icon(
+                              Icons.reply,
+                              size: 16,
+                              color: _accentColor,
+                            ),
+                          ),
+                        if (!notif.read)
+                          Container(
                             width: 10,
                             height: 10,
                             decoration: const BoxDecoration(
@@ -3071,14 +3253,9 @@ class _WriterNotificationsPageState extends State<_WriterNotificationsPage> {
                               shape: BoxShape.circle,
                             ),
                           ),
-                    onTap: () async {
-                      if (!notif.read) {
-                        await widget.firestoreService.markNotificationAsRead(
-                          notif.id,
-                        );
-                        setState(() => _loadNotifications());
-                      }
-                    },
+                      ],
+                    ),
+                    onTap: () => _handleNotificationTap(notif),
                   ),
                 );
               },

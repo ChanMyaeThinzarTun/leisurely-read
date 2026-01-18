@@ -5,9 +5,18 @@ class NotificationModel {
   final String userId;
   final String title;
   final String message;
-  final String type; // 'warning', 'info', 'alert'
+  final String
+  type; // 'warning', 'info', 'alert', 'vote', 'comment', 'reply', 'new_chapter'
   final bool read;
   final DateTime createdAt;
+  // Additional data for navigation
+  final String? bookId;
+  final String? chapterId;
+  final int? chapterNumber;
+  final String? commentId;
+  final String? commentText;
+  final String? fromUserId;
+  final String? fromUserNickname;
 
   NotificationModel({
     required this.id,
@@ -17,6 +26,13 @@ class NotificationModel {
     required this.type,
     required this.read,
     required this.createdAt,
+    this.bookId,
+    this.chapterId,
+    this.chapterNumber,
+    this.commentId,
+    this.commentText,
+    this.fromUserId,
+    this.fromUserNickname,
   });
 
   Map<String, dynamic> toMap() => {
@@ -27,6 +43,13 @@ class NotificationModel {
     'type': type,
     'read': read,
     'createdAt': createdAt,
+    'bookId': bookId,
+    'chapterId': chapterId,
+    'chapterNumber': chapterNumber,
+    'commentId': commentId,
+    'commentText': commentText,
+    'fromUserId': fromUserId,
+    'fromUserNickname': fromUserNickname,
   };
 
   factory NotificationModel.fromMap(Map<String, dynamic> data, String id) =>
@@ -40,5 +63,12 @@ class NotificationModel {
         createdAt: data['createdAt'] != null
             ? (data['createdAt'] as Timestamp).toDate()
             : DateTime.now(),
+        bookId: data['bookId'],
+        chapterId: data['chapterId'],
+        chapterNumber: data['chapterNumber'],
+        commentId: data['commentId'],
+        commentText: data['commentText'],
+        fromUserId: data['fromUserId'],
+        fromUserNickname: data['fromUserNickname'],
       );
 }

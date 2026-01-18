@@ -1126,6 +1126,125 @@ class _NotificationsTabState extends State<_NotificationsTab> {
     notifications = widget.firestoreService.getUserNotifications(widget.userId);
   }
 
+  void _handleNotificationTap(NotificationModel notif) async {
+    // Mark as read
+    if (!notif.read) {
+      await widget.firestoreService.markNotificationAsRead(notif.id);
+      setState(
+        () => notifications = widget.firestoreService.getUserNotifications(
+          widget.userId,
+        ),
+      );
+    }
+
+    // Navigate based on notification type
+    if (notif.bookId != null) {
+      // Get the book
+      final book = await widget.firestoreService.getBookById(notif.bookId!);
+      if (book != null && mounted) {
+        if (notif.type == 'new_chapter' && notif.chapterId != null) {
+          // Navigate directly to the new chapter
+          final chapters = await widget.firestoreService.getChaptersByBook(
+            book.id,
+          );
+          final chapter = chapters.firstWhere(
+            (c) => c.id == notif.chapterId,
+            orElse: () => chapters.isNotEmpty
+                ? chapters.first
+                : throw Exception('No chapters'),
+          );
+          if (mounted) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => _ChapterReadScreen(
+                  chapter: chapter,
+                  allChapters: chapters,
+                  firestoreService: widget.firestoreService,
+                  book: book,
+                ),
+              ),
+            );
+          }
+        } else if (notif.type == 'reply' && notif.chapterId != null) {
+          // Navigate to chapter and show the comment
+          final chapters = await widget.firestoreService.getChaptersByBook(
+            book.id,
+          );
+          final chapter = chapters.firstWhere(
+            (c) => c.id == notif.chapterId,
+            orElse: () => chapters.isNotEmpty
+                ? chapters.first
+                : throw Exception('No chapters'),
+          );
+          if (mounted) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => _ChapterReadScreen(
+                  chapter: chapter,
+                  allChapters: chapters,
+                  firestoreService: widget.firestoreService,
+                  book: book,
+                ),
+              ),
+            );
+            // Show the comment in a dialog after navigation
+            if (notif.commentText != null && mounted) {
+              Future.delayed(const Duration(milliseconds: 500), () {
+                if (mounted) {
+                  _showCommentReplyDialog(notif);
+                }
+              });
+            }
+          }
+        } else {
+          // Navigate to book detail
+          if (mounted) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => _BookDetailScreen(
+                  book: book,
+                  firestoreService: widget.firestoreService,
+                ),
+              ),
+            );
+          }
+        }
+      }
+    }
+  }
+
+  void _showCommentReplyDialog(NotificationModel notif) {
+    final isDarkMode = themeService.isDarkMode;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: isDarkMode ? _darkCard : Colors.white,
+        title: Text(
+          '${notif.fromUserNickname ?? "Someone"} replied:',
+          style: TextStyle(
+            color: isDarkMode ? _darkText : Colors.black,
+            fontSize: 16,
+          ),
+        ),
+        content: Text(
+          notif.commentText ?? '',
+          style: TextStyle(
+            color: isDarkMode ? _darkTextSecondary : Colors.grey.shade700,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close', style: TextStyle(color: _accentColor)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDarkMode = themeService.isDarkMode;
@@ -1246,17 +1365,7 @@ class _NotificationsTabState extends State<_NotificationsTab> {
                                 shape: BoxShape.circle,
                               ),
                             ),
-                      onTap: () async {
-                        if (!notif.read) {
-                          await widget.firestoreService.markNotificationAsRead(
-                            notif.id,
-                          );
-                          setState(
-                            () => notifications = widget.firestoreService
-                                .getUserNotifications(widget.userId),
-                          );
-                        }
-                      },
+                      onTap: () => _handleNotificationTap(notif),
                     );
                   },
                 );

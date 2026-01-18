@@ -258,6 +258,9 @@ class FirestoreService {
               'New Chapter!',
               '"${book.title}" has a new part: $chapterTitle',
               'new_chapter',
+              bookId: bookId,
+              chapterId: docRef.id,
+              chapterNumber: chapterNumber,
             );
           }
         }
@@ -369,6 +372,14 @@ class FirestoreService {
     });
 
     final nickname = userNickname.isNotEmpty ? userNickname : 'Someone';
+    final book = await getBookById(bookId);
+
+    // Get chapter info if available
+    int? chapterNumber;
+    if (chapterId != null) {
+      final chapter = await getChapterById(chapterId);
+      chapterNumber = chapter?.chapterNumber;
+    }
 
     // If this is a reply, notify the parent comment author
     if (parentCommentId != null && parentCommentId.isNotEmpty) {
@@ -384,19 +395,32 @@ class FirestoreService {
             'New Reply!',
             '$nickname replied to your comment',
             'reply',
+            bookId: bookId,
+            chapterId: chapterId,
+            chapterNumber: chapterNumber,
+            commentId: docRef.id,
+            commentText: message,
+            fromUserId: visibleUserId,
+            fromUserNickname: nickname,
           );
         }
       }
     }
 
     // Notify the book writer (if commenter is not the writer)
-    final book = await getBookById(bookId);
     if (book != null && book.writerId != visibleUserId) {
       await sendNotification(
         book.writerId,
         'New Comment!',
         '$nickname commented on "${book.title}"',
         'comment',
+        bookId: bookId,
+        chapterId: chapterId,
+        chapterNumber: chapterNumber,
+        commentId: docRef.id,
+        commentText: message,
+        fromUserId: visibleUserId,
+        fromUserNickname: nickname,
       );
     }
 
@@ -484,11 +508,19 @@ class FirestoreService {
         final book = await getBookById(chapter.bookId);
         if (book != null && book.writerId != visibleUserId) {
           final nickname = voterNickname.isNotEmpty ? voterNickname : 'Someone';
+          final chapterTitle = chapter.title.isNotEmpty
+              ? chapter.title
+              : 'Part ${chapter.chapterNumber}';
           await sendNotification(
             book.writerId,
             'New Vote!',
-            '$nickname voted on "${book.title}"',
+            '$nickname voted on "$chapterTitle" in "${book.title}"',
             'vote',
+            bookId: book.id,
+            chapterId: chapterId,
+            chapterNumber: chapter.chapterNumber,
+            fromUserId: visibleUserId,
+            fromUserNickname: nickname,
           );
         }
       }
@@ -516,8 +548,15 @@ class FirestoreService {
     String userId,
     String title,
     String message,
-    String type, // 'warning', 'info', 'alert'
-  ) async {
+    String type, {
+    String? bookId,
+    String? chapterId,
+    int? chapterNumber,
+    String? commentId,
+    String? commentText,
+    String? fromUserId,
+    String? fromUserNickname,
+  }) async {
     final docRef = await _firestore.collection('notifications').add({
       'userId': userId,
       'title': title,
@@ -525,6 +564,13 @@ class FirestoreService {
       'type': type,
       'read': false,
       'createdAt': FieldValue.serverTimestamp(),
+      'bookId': bookId,
+      'chapterId': chapterId,
+      'chapterNumber': chapterNumber,
+      'commentId': commentId,
+      'commentText': commentText,
+      'fromUserId': fromUserId,
+      'fromUserNickname': fromUserNickname,
     });
     return docRef.id;
   }
