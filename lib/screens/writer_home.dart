@@ -435,41 +435,67 @@ class _WriterHomeState extends State<WriterHome> {
               ),
             ),
             const SizedBox(height: 4),
-            // Stats row for reads and votes
+            // Stats row for reads, votes, and comments
             FutureBuilder<int>(
               future: firestoreService.getTotalVotesForBook(book.id),
               builder: (context, voteSnapshot) {
-                final votes = voteSnapshot.data ?? 0;
-                return Row(
-                  children: [
-                    Icon(
-                      Icons.visibility,
-                      size: 12,
-                      color: isDarkMode ? _darkTextSecondary : Colors.grey,
-                    ),
-                    const SizedBox(width: 2),
-                    Text(
-                      _formatNumber(book.readCount),
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: isDarkMode ? _darkTextSecondary : Colors.grey,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Icon(
-                      Icons.star,
-                      size: 12,
-                      color: isDarkMode ? _darkTextSecondary : Colors.grey,
-                    ),
-                    const SizedBox(width: 2),
-                    Text(
-                      _formatNumber(votes),
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: isDarkMode ? _darkTextSecondary : Colors.grey,
-                      ),
-                    ),
-                  ],
+                return FutureBuilder<int>(
+                  future: firestoreService.getCommentCount(book.id),
+                  builder: (context, commentSnapshot) {
+                    final votes = voteSnapshot.data ?? 0;
+                    final comments = commentSnapshot.data ?? 0;
+                    return Row(
+                      children: [
+                        Icon(
+                          Icons.visibility,
+                          size: 12,
+                          color: isDarkMode ? _darkTextSecondary : Colors.grey,
+                        ),
+                        const SizedBox(width: 2),
+                        Text(
+                          _formatNumber(book.readCount),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: isDarkMode
+                                ? _darkTextSecondary
+                                : Colors.grey,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Icon(
+                          Icons.star,
+                          size: 12,
+                          color: isDarkMode ? _darkTextSecondary : Colors.grey,
+                        ),
+                        const SizedBox(width: 2),
+                        Text(
+                          _formatNumber(votes),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: isDarkMode
+                                ? _darkTextSecondary
+                                : Colors.grey,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Icon(
+                          Icons.comment,
+                          size: 12,
+                          color: isDarkMode ? _darkTextSecondary : Colors.grey,
+                        ),
+                        const SizedBox(width: 2),
+                        Text(
+                          _formatNumber(comments),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: isDarkMode
+                                ? _darkTextSecondary
+                                : Colors.grey,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 );
               },
             ),
