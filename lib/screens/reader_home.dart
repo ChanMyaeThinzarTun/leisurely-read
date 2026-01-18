@@ -1138,81 +1138,58 @@ class _NotificationsTabState extends State<_NotificationsTab> {
     }
 
     // Navigate based on notification type
-    if (notif.bookId != null) {
+    if (notif.bookId == null) return;
+
+    try {
       // Get the book
       final book = await widget.firestoreService.getBookById(notif.bookId!);
-      if (book != null && mounted) {
-        if (notif.type == 'new_chapter' && notif.chapterId != null) {
-          // Navigate directly to the new chapter
-          final chapters = await widget.firestoreService.getChaptersByBook(
-            book.id,
-          );
-          final chapter = chapters.firstWhere(
-            (c) => c.id == notif.chapterId,
-            orElse: () => chapters.isNotEmpty
-                ? chapters.first
-                : throw Exception('No chapters'),
-          );
-          if (mounted) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => _ChapterReadScreen(
-                  chapter: chapter,
-                  allChapters: chapters,
-                  firestoreService: widget.firestoreService,
-                  book: book,
-                ),
-              ),
-            );
-          }
-        } else if (notif.type == 'reply' && notif.chapterId != null) {
-          // Navigate to chapter and show the comment
-          final chapters = await widget.firestoreService.getChaptersByBook(
-            book.id,
-          );
-          final chapter = chapters.firstWhere(
-            (c) => c.id == notif.chapterId,
-            orElse: () => chapters.isNotEmpty
-                ? chapters.first
-                : throw Exception('No chapters'),
-          );
-          if (mounted) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => _ChapterReadScreen(
-                  chapter: chapter,
-                  allChapters: chapters,
-                  firestoreService: widget.firestoreService,
-                  book: book,
-                ),
-              ),
-            );
-            // Show the comment in a dialog after navigation
-            if (notif.commentText != null && mounted) {
-              Future.delayed(const Duration(milliseconds: 500), () {
-                if (mounted) {
-                  _showCommentReplyDialog(notif);
-                }
-              });
-            }
-          }
-        } else {
-          // Navigate to book detail
-          if (mounted) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => _BookDetailScreen(
-                  book: book,
-                  firestoreService: widget.firestoreService,
-                ),
-              ),
-            );
-          }
+      if (book == null || !mounted) return;
+
+      if ((notif.type == 'new_chapter' || notif.type == 'reply') &&
+          notif.chapterId != null) {
+        // Navigate directly to the chapter
+        final chapters = await widget.firestoreService.getChaptersByBook(
+          book.id,
+        );
+        if (chapters.isEmpty || !mounted) return;
+
+        final chapter = chapters.firstWhere(
+          (c) => c.id == notif.chapterId,
+          orElse: () => chapters.first,
+        );
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => _ChapterReadScreen(
+              chapter: chapter,
+              allChapters: chapters,
+              firestoreService: widget.firestoreService,
+              book: book,
+            ),
+          ),
+        );
+
+        // Show reply dialog after navigation if it's a reply notification
+        if (notif.type == 'reply' && notif.commentText != null) {
+          Future.delayed(const Duration(milliseconds: 500), () {
+            if (mounted) _showCommentReplyDialog(notif);
+          });
         }
+      } else {
+        // Navigate to book detail for other types
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => _BookDetailScreen(
+              book: book,
+              firestoreService: widget.firestoreService,
+            ),
+          ),
+        );
       }
+    } catch (e) {
+      debugPrint('Error navigating from notification: $e');
     }
   }
 
@@ -1330,42 +1307,80 @@ class _NotificationsTabState extends State<_NotificationsTab> {
                         notifIcon = Icons.notifications;
                     }
 
-                    return ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: _accentColor.withOpacity(0.2),
-                        child: Icon(notifIcon, color: _accentColor, size: 20),
-                      ),
-                      title: Text(
-                        notif.title,
-                        style: TextStyle(
-                          fontWeight: notif.read
-                              ? FontWeight.normal
-                              : FontWeight.bold,
-                          color: isDarkMode ? _darkText : Colors.black,
-                          fontSize: 14,
+                    // Check if notification is navigable
+                    final isNavigable =
+                        notif.bookId != null &&
+                        (notif.type == 'new_chapter' || notif.type == 'reply');
+
+                    return Card(
+                      color: isDarkMode ? _darkCard : Colors.white,
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: _accentColor.withValues(alpha: 0.2),
+                          child: Icon(notifIcon, color: _accentColor, size: 20),
                         ),
-                      ),
-                      subtitle: Text(
-                        notif.message,
-                        style: TextStyle(
-                          color: isDarkMode
-                              ? _darkTextSecondary
-                              : Colors.grey.shade600,
-                          fontSize: 12,
+                        title: Text(
+                          notif.title,
+                          style: TextStyle(
+                            fontWeight: notif.read
+                                ? FontWeight.normal
+                                : FontWeight.bold,
+                            color: isDarkMode ? _darkText : Colors.black,
+                            fontSize: 14,
+                          ),
                         ),
-                        maxLines: 2,
-                      ),
-                      trailing: notif.read
-                          ? null
-                          : Container(
-                              width: 8,
-                              height: 8,
-                              decoration: const BoxDecoration(
-                                color: _accentColor,
-                                shape: BoxShape.circle,
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              notif.message,
+                              style: TextStyle(
+                                color: isDarkMode
+                                    ? _darkTextSecondary
+                                    : Colors.grey.shade600,
+                                fontSize: 12,
                               ),
+                              maxLines: 2,
                             ),
-                      onTap: () => _handleNotificationTap(notif),
+                            if (notif.chapterNumber != null) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                'Part ${notif.chapterNumber}',
+                                style: TextStyle(
+                                  color: _accentColor,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (!notif.read)
+                              Container(
+                                width: 8,
+                                height: 8,
+                                margin: const EdgeInsets.only(right: 8),
+                                decoration: const BoxDecoration(
+                                  color: _accentColor,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            if (isNavigable)
+                              Icon(
+                                Icons.chevron_right,
+                                color: isDarkMode
+                                    ? _darkTextSecondary
+                                    : Colors.grey,
+                                size: 20,
+                              ),
+                          ],
+                        ),
+                        onTap: () => _handleNotificationTap(notif),
+                      ),
                     );
                   },
                 );
