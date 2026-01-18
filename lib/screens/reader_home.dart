@@ -2310,15 +2310,26 @@ class _ChapterReadScreenState extends State<_ChapterReadScreen> {
 
     final textColor = isDarkMode ? _darkText : Colors.black;
 
-    // Pattern for combined formats: bold+italic, underline+bold, etc.
-    // Order matters: check combined formats first, then single formats
+    // Pattern for combined formats: triple, double, then single
+    // Order matters: check most complex formats first
     final RegExp pattern = RegExp(
+      // Triple combinations (bold + italic + underline)
+      r'<u>_\*\*(.+?)\*\*_</u>|' // <u>_**text**_</u>
+      r'<u>\*\*_(.+?)_\*\*</u>|' // <u>**_text_**</u>
+      r'_\*\*<u>(.+?)</u>\*\*_|' // _**<u>text</u>**_
+      r'_<u>\*\*(.+?)\*\*</u>_|' // _<u>**text**</u>_
+      r'\*\*_<u>(.+?)</u>_\*\*|' // **_<u>text</u>_**
+      r'\*\*<u>_(.+?)_</u>\*\*|' // **<u>_text_</u>**
+      // Double combinations (bold + italic)
       r'_\*\*(.+?)\*\*_|' // _**bold italic**_
       r'\*\*_(.+?)_\*\*|' // **_bold italic_**
+      // Double combinations (underline + bold)
       r'<u>\*\*(.+?)\*\*</u>|' // <u>**underline bold**</u>
       r'\*\*<u>(.+?)</u>\*\*|' // **<u>bold underline</u>**
+      // Double combinations (underline + italic)
       r'<u>_(.+?)_</u>|' // <u>_underline italic_</u>
       r'_<u>(.+?)</u>_|' // _<u>italic underline</u>_
+      // Single formats
       r'\*\*(.+?)\*\*|' // **bold**
       r'_(.+?)_|' // _italic_
       r'<u>(.+?)</u>', // <u>underline</u>
@@ -2334,11 +2345,35 @@ class _ChapterReadScreenState extends State<_ChapterReadScreen> {
       }
 
       // Determine which group matched and apply appropriate style
-      if (match.group(1) != null || match.group(2) != null) {
+      // Groups 1-6: Triple combination (bold + italic + underline)
+      if (match.group(1) != null ||
+          match.group(2) != null ||
+          match.group(3) != null ||
+          match.group(4) != null ||
+          match.group(5) != null ||
+          match.group(6) != null) {
+        spans.add(
+          TextSpan(
+            text:
+                match.group(1) ??
+                match.group(2) ??
+                match.group(3) ??
+                match.group(4) ??
+                match.group(5) ??
+                match.group(6),
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontStyle: FontStyle.italic,
+              decoration: TextDecoration.underline,
+              color: textColor,
+            ),
+          ),
+        );
+      } else if (match.group(7) != null || match.group(8) != null) {
         // Bold + Italic
         spans.add(
           TextSpan(
-            text: match.group(1) ?? match.group(2),
+            text: match.group(7) ?? match.group(8),
             style: TextStyle(
               fontWeight: FontWeight.bold,
               fontStyle: FontStyle.italic,
@@ -2346,11 +2381,11 @@ class _ChapterReadScreenState extends State<_ChapterReadScreen> {
             ),
           ),
         );
-      } else if (match.group(3) != null || match.group(4) != null) {
+      } else if (match.group(9) != null || match.group(10) != null) {
         // Underline + Bold
         spans.add(
           TextSpan(
-            text: match.group(3) ?? match.group(4),
+            text: match.group(9) ?? match.group(10),
             style: TextStyle(
               fontWeight: FontWeight.bold,
               decoration: TextDecoration.underline,
@@ -2358,11 +2393,11 @@ class _ChapterReadScreenState extends State<_ChapterReadScreen> {
             ),
           ),
         );
-      } else if (match.group(5) != null || match.group(6) != null) {
+      } else if (match.group(11) != null || match.group(12) != null) {
         // Underline + Italic
         spans.add(
           TextSpan(
-            text: match.group(5) ?? match.group(6),
+            text: match.group(11) ?? match.group(12),
             style: TextStyle(
               fontStyle: FontStyle.italic,
               decoration: TextDecoration.underline,
@@ -2370,27 +2405,27 @@ class _ChapterReadScreenState extends State<_ChapterReadScreen> {
             ),
           ),
         );
-      } else if (match.group(7) != null) {
+      } else if (match.group(13) != null) {
         // Bold only
         spans.add(
           TextSpan(
-            text: match.group(7),
+            text: match.group(13),
             style: TextStyle(fontWeight: FontWeight.bold, color: textColor),
           ),
         );
-      } else if (match.group(8) != null) {
+      } else if (match.group(14) != null) {
         // Italic only
         spans.add(
           TextSpan(
-            text: match.group(8),
+            text: match.group(14),
             style: TextStyle(fontStyle: FontStyle.italic, color: textColor),
           ),
         );
-      } else if (match.group(9) != null) {
+      } else if (match.group(15) != null) {
         // Underline only
         spans.add(
           TextSpan(
-            text: match.group(9),
+            text: match.group(15),
             style: TextStyle(
               decoration: TextDecoration.underline,
               color: textColor,
