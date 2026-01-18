@@ -39,6 +39,9 @@ dependencies:
   image_picker: ^1.0.7
   image: ^4.1.7
   
+  # Date formatting
+  intl: ^0.20.2
+  
   # For base64 encoding
   # (using dart:convert which is built-in)
 

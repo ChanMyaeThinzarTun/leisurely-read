@@ -10,6 +10,23 @@ class FirestoreService {
 
   // ==================== USERS ====================
 
+  Future<void> updateUserNickname(String userId, String nickname) async {
+    await _firestore.collection('users').doc(userId).update({
+      'nickname': nickname,
+    });
+  }
+
+  Future<void> updateSafeSearch(String userId, bool safeSearch) async {
+    await _firestore.collection('users').doc(userId).update({
+      'safeSearch': safeSearch,
+    });
+  }
+
+  Future<bool> getSafeSearch(String userId) async {
+    final doc = await _firestore.collection('users').doc(userId).get();
+    return doc.data()?['safeSearch'] ?? true;
+  }
+
   Future<void> banUser(String userId, DateTime bannedUntil) async {
     await _firestore.collection('users').doc(userId).update({
       'bannedUntil': bannedUntil,
@@ -72,9 +89,11 @@ class FirestoreService {
     bool isMature = false,
     bool isCompleted = false,
     bool isDraft = false,
+    String writerNickname = '',
   }) async {
     final docRef = await _firestore.collection('books').add({
       'writerId': writerId,
+      'writerNickname': writerNickname,
       'title': title,
       'coverImageUrl': coverImageUrl,
       'description': description,
@@ -83,6 +102,7 @@ class FirestoreService {
       'isMature': isMature,
       'isCompleted': isCompleted,
       'isDraft': isDraft,
+      'readCount': 0,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
@@ -155,15 +175,33 @@ class FirestoreService {
     await _firestore.collection('books').doc(bookId).delete();
   }
 
-  Future<List<BookModel>> getAllBooks() async {
+  Future<List<BookModel>> getAllBooks({bool safeSearch = true}) async {
     final snapshot = await _firestore
         .collection('books')
         .where('isDraft', isEqualTo: false)
-        .orderBy('createdAt', descending: true)
         .get();
-    return snapshot.docs
+    var books = snapshot.docs
         .map((doc) => BookModel.fromMap(doc.data(), doc.id))
         .toList();
+    // Filter mature content if safe search is on
+    if (safeSearch) {
+      books = books.where((b) => !b.isMature).toList();
+    }
+    books.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return books;
+  }
+
+  Future<List<BookModel>> getPublishedBooksByWriter(String writerId) async {
+    final snapshot = await _firestore
+        .collection('books')
+        .where('writerId', isEqualTo: writerId)
+        .where('isDraft', isEqualTo: false)
+        .get();
+    final books = snapshot.docs
+        .map((doc) => BookModel.fromMap(doc.data(), doc.id))
+        .toList();
+    books.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return books;
   }
 
   Future<List<BookModel>> getBooksByWriter(String writerId) async {
@@ -271,26 +309,63 @@ class FirestoreService {
     String userId,
     String message, {
     String? chapterId,
+    String userNickname = '',
+    String? selectedText,
+    int? textStartIndex,
+    int? textEndIndex,
+    String? parentCommentId,
   }) async {
     final docRef = await _firestore.collection('comments').add({
       'bookId': bookId,
       'chapterId': chapterId,
       'userId': userId,
+      'userNickname': userNickname,
       'message': message,
+      'selectedText': selectedText,
+      'textStartIndex': textStartIndex,
+      'textEndIndex': textEndIndex,
+      'parentCommentId': parentCommentId,
       'createdAt': FieldValue.serverTimestamp(),
     });
     return docRef.id;
+  }
+
+  Future<List<CommentModel>> getCommentReplies(String parentCommentId) async {
+    final snapshot = await _firestore
+        .collection('comments')
+        .where('parentCommentId', isEqualTo: parentCommentId)
+        .orderBy('createdAt', descending: false)
+        .get();
+    return snapshot.docs
+        .map((doc) => CommentModel.fromMap(doc.data(), doc.id))
+        .toList();
+  }
+
+  Future<List<CommentModel>> getInlineComments(String chapterId) async {
+    final snapshot = await _firestore
+        .collection('comments')
+        .where('chapterId', isEqualTo: chapterId)
+        .where('selectedText', isNull: false)
+        .orderBy('createdAt', descending: true)
+        .get();
+    return snapshot.docs
+        .where((doc) => doc.data()['selectedText'] != null)
+        .map((doc) => CommentModel.fromMap(doc.data(), doc.id))
+        .toList();
   }
 
   Future<List<CommentModel>> getCommentsByChapter(String chapterId) async {
     final snapshot = await _firestore
         .collection('comments')
         .where('chapterId', isEqualTo: chapterId)
-        .orderBy('createdAt', descending: true)
         .get();
-    return snapshot.docs
+    // Filter out replies (comments with parentCommentId) and sort in-app
+    final comments = snapshot.docs
         .map((doc) => CommentModel.fromMap(doc.data(), doc.id))
+        .where((c) => c.parentCommentId == null || c.parentCommentId!.isEmpty)
         .toList();
+    comments.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return comments;
   }
 
   Future<List<CommentModel>> getCommentsByBook(String bookId) async {
@@ -307,19 +382,17 @@ class FirestoreService {
   // ==================== VOTES ====================
 
   Future<void> addVote(String chapterId, String userId) async {
-    // Check if vote already exists
-    final existing = await _firestore
-        .collection('votes')
-        .where('chapterId', isEqualTo: chapterId)
-        .where('userId', isEqualTo: userId)
-        .get();
+    // Check if vote already exists - use document ID to avoid composite index
+    final docId = '${chapterId}_$userId';
+    final docRef = _firestore.collection('votes').doc(docId);
+    final doc = await docRef.get();
 
-    if (existing.docs.isNotEmpty) {
+    if (doc.exists) {
       // Remove existing vote
-      await existing.docs.first.reference.delete();
+      await docRef.delete();
     } else {
       // Add new vote
-      await _firestore.collection('votes').add({
+      await docRef.set({
         'chapterId': chapterId,
         'userId': userId,
         'voteValue': 1,
@@ -337,12 +410,10 @@ class FirestoreService {
   }
 
   Future<bool> hasUserVoted(String chapterId, String userId) async {
-    final snapshot = await _firestore
-        .collection('votes')
-        .where('chapterId', isEqualTo: chapterId)
-        .where('userId', isEqualTo: userId)
-        .get();
-    return snapshot.docs.isNotEmpty;
+    // Use document ID to check - avoids composite index
+    final docId = '${chapterId}_$userId';
+    final doc = await _firestore.collection('votes').doc(docId).get();
+    return doc.exists;
   }
 
   // ==================== NOTIFICATIONS ====================
@@ -448,5 +519,126 @@ class FirestoreService {
         .doc(bookId)
         .get();
     return doc.exists;
+  }
+
+  // ==================== READING POSITION ====================
+
+  Future<void> saveReadingPosition(
+    String userId,
+    String bookId,
+    String chapterId,
+    double scrollPosition,
+  ) async {
+    await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('library')
+        .doc(bookId)
+        .update({
+          'lastChapterId': chapterId,
+          'scrollPosition': scrollPosition,
+          'lastReadAt': FieldValue.serverTimestamp(),
+        });
+  }
+
+  Future<Map<String, dynamic>?> getReadingPosition(
+    String userId,
+    String bookId,
+  ) async {
+    final doc = await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('library')
+        .doc(bookId)
+        .get();
+    if (doc.exists) {
+      return {
+        'lastChapterId': doc.data()?['lastChapterId'],
+        'scrollPosition': doc.data()?['scrollPosition'] ?? 0.0,
+      };
+    }
+    return null;
+  }
+
+  // ==================== SEARCH ====================
+
+  Future<List<BookModel>> searchBooks(
+    String query, {
+    bool safeSearch = true,
+  }) async {
+    // Get all published books and filter locally
+    final snapshot = await _firestore
+        .collection('books')
+        .where('isDraft', isEqualTo: false)
+        .get();
+
+    final queryLower = query.toLowerCase();
+    var results = snapshot.docs
+        .map((doc) => BookModel.fromMap(doc.data(), doc.id))
+        .where(
+          (book) =>
+              book.title.toLowerCase().contains(queryLower) ||
+              book.writerNickname.toLowerCase().contains(queryLower) ||
+              book.description.toLowerCase().contains(queryLower) ||
+              book.tags.any((tag) => tag.toLowerCase().contains(queryLower)),
+        )
+        .toList();
+
+    // Filter mature content if safe search is on
+    if (safeSearch) {
+      results = results.where((b) => !b.isMature).toList();
+    }
+    return results;
+  }
+
+  Future<List<UserModel>> searchWriters(String query) async {
+    final snapshot = await _firestore
+        .collection('users')
+        .where('role', isEqualTo: 'writer')
+        .where('isApproved', isEqualTo: true)
+        .get();
+
+    final queryLower = query.toLowerCase();
+    return snapshot.docs
+        .map((doc) => UserModel.fromMap(doc.data(), doc.id))
+        .where(
+          (user) =>
+              user.nickname.toLowerCase().contains(queryLower) ||
+              user.email.toLowerCase().contains(queryLower),
+        )
+        .toList();
+  }
+
+  // ==================== BOOK STATS ====================
+
+  Future<void> incrementReadCount(String bookId) async {
+    await _firestore.collection('books').doc(bookId).update({
+      'readCount': FieldValue.increment(1),
+    });
+  }
+
+  Future<int> getTotalVotesForBook(String bookId) async {
+    final chapters = await getChaptersByBook(bookId);
+    int totalVotes = 0;
+    for (var chapter in chapters) {
+      totalVotes += await getVoteCount(chapter.id);
+    }
+    return totalVotes;
+  }
+
+  Future<int> getChapterCount(String bookId) async {
+    final snapshot = await _firestore
+        .collection('chapters')
+        .where('bookId', isEqualTo: bookId)
+        .get();
+    return snapshot.docs.length;
+  }
+
+  Future<int> getCommentCount(String bookId) async {
+    final snapshot = await _firestore
+        .collection('comments')
+        .where('bookId', isEqualTo: bookId)
+        .get();
+    return snapshot.docs.length;
   }
 }

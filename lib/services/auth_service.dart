@@ -17,6 +17,7 @@ class AuthService {
     final isAdmin = (user.email ?? '').toLowerCase() == adminEmail;
     await docRef.set({
       'email': user.email ?? '',
+      'nickname': '',
       'role': isAdmin ? 'admin' : 'reader',
       'isApproved': true,
       'bannedUntil': null,
@@ -25,14 +26,23 @@ class AuthService {
   }
 
   // Sign up Reader
-  Future<User?> signUpReader(String email, String password) async {
+  Future<User?> signUpReader(
+    String email,
+    String password, {
+    String nickname = '',
+  }) async {
     final cred = await _auth.createUserWithEmailAndPassword(
       email: email,
       password: password,
     );
+    // Update display name
+    if (nickname.isNotEmpty) {
+      await cred.user!.updateDisplayName(nickname);
+    }
     // Add to Firestore
     await _firestore.collection('users').doc(cred.user!.uid).set({
       'email': email,
+      'nickname': nickname,
       'role': 'reader',
       'isApproved': true,
       'bannedUntil': null,
@@ -42,7 +52,12 @@ class AuthService {
   }
 
   // Sign up Writer (requires admin approval code)
-  Future<User?> signUpWriter(String email, String password, String code) async {
+  Future<User?> signUpWriter(
+    String email,
+    String password,
+    String code, {
+    String nickname = '',
+  }) async {
     if (code != writerSignupCode) {
       throw Exception('Invalid writer signup code');
     }
@@ -50,15 +65,40 @@ class AuthService {
       email: email,
       password: password,
     );
+    // Update display name
+    if (nickname.isNotEmpty) {
+      await cred.user!.updateDisplayName(nickname);
+    }
     // Add to Firestore with isApproved = false
     await _firestore.collection('users').doc(cred.user!.uid).set({
       'email': email,
+      'nickname': nickname,
       'role': 'writer',
       'isApproved': false,
       'bannedUntil': null,
       'createdAt': FieldValue.serverTimestamp(),
     });
     return cred.user;
+  }
+
+  // Update user nickname
+  Future<void> updateNickname(String nickname) async {
+    final user = _auth.currentUser;
+    if (user != null) {
+      await user.updateDisplayName(nickname);
+      await _firestore.collection('users').doc(user.uid).update({
+        'nickname': nickname,
+      });
+    }
+  }
+
+  // Get user nickname
+  Future<String> getUserNickname(String userId) async {
+    final doc = await _firestore.collection('users').doc(userId).get();
+    if (doc.exists) {
+      return doc.data()?['nickname'] ?? '';
+    }
+    return '';
   }
 
   // Create Admin Account (one-time setup)

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../services/theme_service.dart';
@@ -8,6 +9,7 @@ import '../models/book_model.dart';
 import '../models/chapter_model.dart';
 import '../models/comment_model.dart';
 import '../models/notification_model.dart';
+import '../models/user_model.dart';
 
 // Theme colors
 const _darkBg = Color(0xFF121212);
@@ -15,6 +17,12 @@ const _darkCard = Color(0xFF1E1E1E);
 const _darkText = Colors.white;
 const _darkTextSecondary = Color(0xFFAAAAAA);
 const _accentColor = Color(0xFF00BFA5); // Teal
+
+String _formatNumber(int num) {
+  if (num >= 1000000) return '${(num / 1000000).toStringAsFixed(1)}M';
+  if (num >= 1000) return '${(num / 1000).toStringAsFixed(1)}K';
+  return num.toString();
+}
 
 // Helper widget to display book cover (base64 or placeholder)
 Widget _buildBookCover(
@@ -90,7 +98,8 @@ class _ReaderHomeState extends State<ReaderHome> {
     final userId = authService.getCurrentUser()?.uid ?? '';
 
     final pages = [
-      _BrowseTab(firestoreService: firestoreService),
+      _BrowseTab(firestoreService: firestoreService, userId: userId),
+      _SearchTab(firestoreService: firestoreService, userId: userId),
       _LibraryTab(firestoreService: firestoreService, userId: userId),
       _NotificationsTab(firestoreService: firestoreService, userId: userId),
       _ProfileTab(
@@ -138,18 +147,24 @@ class _ReaderHomeState extends State<ReaderHome> {
                   _buildNavItem(0, Icons.home_outlined, Icons.home, 'Home'),
                   _buildNavItem(
                     1,
+                    Icons.search_outlined,
+                    Icons.search,
+                    'Search',
+                  ),
+                  _buildNavItem(
+                    2,
                     Icons.library_books_outlined,
                     Icons.library_books,
                     'Library',
                   ),
                   _buildNavItem(
-                    2,
+                    3,
                     Icons.notifications_outlined,
                     Icons.notifications,
                     'Updates',
                   ),
                   _buildNavItem(
-                    3,
+                    4,
                     Icons.person_outline,
                     Icons.person,
                     'Profile',
@@ -182,29 +197,19 @@ class _ReaderHomeState extends State<ReaderHome> {
             color: isSelected
                 ? _accentColor
                 : (isDarkMode ? _darkTextSecondary : Colors.grey),
-            size: 26,
+            size: 24,
           ),
           const SizedBox(height: 4),
           Text(
             label,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: 10,
               color: isSelected
                   ? _accentColor
                   : (isDarkMode ? _darkTextSecondary : Colors.grey),
               fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
             ),
           ),
-          if (isSelected)
-            Container(
-              margin: const EdgeInsets.only(top: 4),
-              width: 20,
-              height: 2,
-              decoration: BoxDecoration(
-                color: _accentColor,
-                borderRadius: BorderRadius.circular(1),
-              ),
-            ),
         ],
       ),
     );
@@ -214,7 +219,8 @@ class _ReaderHomeState extends State<ReaderHome> {
 // ==================== BROWSE TAB ====================
 class _BrowseTab extends StatefulWidget {
   final FirestoreService firestoreService;
-  const _BrowseTab({required this.firestoreService});
+  final String userId;
+  const _BrowseTab({required this.firestoreService, required this.userId});
 
   @override
   State<_BrowseTab> createState() => _BrowseTabState();
@@ -223,6 +229,7 @@ class _BrowseTab extends StatefulWidget {
 class _BrowseTabState extends State<_BrowseTab> {
   late Future<List<BookModel>> books;
   String _selectedCategory = 'All';
+  bool _safeSearch = true;
 
   final List<String> _categories = [
     'All',
@@ -241,21 +248,21 @@ class _BrowseTabState extends State<_BrowseTab> {
   @override
   void initState() {
     super.initState();
-    books = widget.firestoreService.getAllBooks();
+    _loadSafeSearch();
+  }
+
+  Future<void> _loadSafeSearch() async {
+    final safe = await widget.firestoreService.getSafeSearch(widget.userId);
+    setState(() {
+      _safeSearch = safe;
+      books = widget.firestoreService.getAllBooks(safeSearch: _safeSearch);
+    });
   }
 
   void _refreshBooks() {
     setState(() {
-      books = widget.firestoreService.getAllBooks();
+      books = widget.firestoreService.getAllBooks(safeSearch: _safeSearch);
     });
-  }
-
-  List<BookModel> _filterBooks(List<BookModel> allBooks) {
-    return allBooks.where((book) {
-      final matchesCategory =
-          _selectedCategory == 'All' || book.category == _selectedCategory;
-      return matchesCategory;
-    }).toList();
   }
 
   @override
@@ -265,7 +272,6 @@ class _BrowseTabState extends State<_BrowseTab> {
     return SafeArea(
       child: Column(
         children: [
-          // Header
           Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
@@ -278,24 +284,10 @@ class _BrowseTabState extends State<_BrowseTab> {
                     color: isDarkMode ? _darkText : Colors.black,
                   ),
                 ),
-                const Spacer(),
-                IconButton(
-                  icon: Icon(
-                    Icons.search,
-                    color: isDarkMode ? _darkText : Colors.black,
-                  ),
-                  onPressed: () {
-                    showSearch(
-                      context: context,
-                      delegate: _BookSearchDelegate(widget.firestoreService),
-                    );
-                  },
-                ),
               ],
             ),
           ),
 
-          // Category filter
           SizedBox(
             height: 40,
             child: ListView.builder(
@@ -310,9 +302,8 @@ class _BrowseTabState extends State<_BrowseTab> {
                   child: FilterChip(
                     label: Text(category),
                     selected: isSelected,
-                    onSelected: (selected) {
-                      setState(() => _selectedCategory = category);
-                    },
+                    onSelected: (selected) =>
+                        setState(() => _selectedCategory = category),
                     selectedColor: _accentColor,
                     labelStyle: TextStyle(
                       color: isSelected
@@ -332,7 +323,6 @@ class _BrowseTabState extends State<_BrowseTab> {
 
           const SizedBox(height: 16),
 
-          // Books grid
           Expanded(
             child: FutureBuilder<List<BookModel>>(
               future: books,
@@ -344,7 +334,10 @@ class _BrowseTabState extends State<_BrowseTab> {
                 }
 
                 final allBooks = snapshot.data ?? [];
-                final filteredBooks = _filterBooks(allBooks);
+                final filteredBooks = allBooks.where((book) {
+                  return _selectedCategory == 'All' ||
+                      book.category == _selectedCategory;
+                }).toList();
 
                 if (filteredBooks.isEmpty) {
                   return Center(
@@ -374,19 +367,12 @@ class _BrowseTabState extends State<_BrowseTab> {
                 return RefreshIndicator(
                   onRefresh: () async => _refreshBooks(),
                   color: _accentColor,
-                  child: GridView.builder(
+                  child: ListView.builder(
                     padding: const EdgeInsets.all(16),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 3,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 12,
-                          childAspectRatio: 0.55,
-                        ),
                     itemCount: filteredBooks.length,
                     itemBuilder: (context, index) {
                       final book = filteredBooks[index];
-                      return _BookCard(
+                      return _BookListItem(
                         book: book,
                         firestoreService: widget.firestoreService,
                       );
@@ -402,11 +388,11 @@ class _BrowseTabState extends State<_BrowseTab> {
   }
 }
 
-class _BookCard extends StatelessWidget {
+class _BookListItem extends StatelessWidget {
   final BookModel book;
   final FirestoreService firestoreService;
 
-  const _BookCard({required this.book, required this.firestoreService});
+  const _BookListItem({required this.book, required this.firestoreService});
 
   @override
   Widget build(BuildContext context) {
@@ -420,58 +406,456 @@ class _BookCard extends StatelessWidget {
               _BookDetailScreen(book: book, firestoreService: firestoreService),
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: _buildBookCover(
-                    book.coverImageUrl,
-                    width: double.infinity,
-                    height: double.infinity,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: _buildBookCover(
+                book.coverImageUrl,
+                width: 80,
+                height: 110,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    book.title,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: isDarkMode ? _darkText : Colors.black,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-                if (book.isMature)
-                  Positioned(
-                    top: 4,
-                    right: 4,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 2,
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.visibility,
+                        size: 14,
+                        color: isDarkMode ? _darkTextSecondary : Colors.grey,
                       ),
-                      decoration: BoxDecoration(
-                        color: Colors.red,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: const Text(
-                        '18+',
+                      const SizedBox(width: 4),
+                      Text(
+                        _formatNumber(book.readCount),
                         style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 8,
-                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          color: isDarkMode ? _darkTextSecondary : Colors.grey,
                         ),
                       ),
+                      const SizedBox(width: 12),
+                      Icon(
+                        Icons.star,
+                        size: 14,
+                        color: isDarkMode ? _darkTextSecondary : Colors.grey,
+                      ),
+                      const SizedBox(width: 4),
+                      FutureBuilder<int>(
+                        future: firestoreService.getTotalVotesForBook(book.id),
+                        builder: (context, snapshot) => Text(
+                          _formatNumber(snapshot.data ?? 0),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isDarkMode
+                                ? _darkTextSecondary
+                                : Colors.grey,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Icon(
+                        Icons.list,
+                        size: 14,
+                        color: isDarkMode ? _darkTextSecondary : Colors.grey,
+                      ),
+                      const SizedBox(width: 4),
+                      FutureBuilder<int>(
+                        future: firestoreService.getChapterCount(book.id),
+                        builder: (context, snapshot) => Text(
+                          '${snapshot.data ?? 0}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isDarkMode
+                                ? _darkTextSecondary
+                                : Colors.grey,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    book.description,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: isDarkMode
+                          ? _darkTextSecondary
+                          : Colors.grey.shade700,
+                      height: 1.4,
+                    ),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: book.tags
+                        .take(4)
+                        .map(
+                          (tag) => Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isDarkMode
+                                  ? Colors.grey.shade800
+                                  : Colors.grey.shade200,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              tag,
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: isDarkMode
+                                    ? _darkTextSecondary
+                                    : Colors.grey.shade700,
+                              ),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.more_vert),
+              color: isDarkMode ? _darkTextSecondary : Colors.grey,
+              onPressed: () {},
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ==================== SEARCH TAB ====================
+class _SearchTab extends StatefulWidget {
+  final FirestoreService firestoreService;
+  final String userId;
+  const _SearchTab({required this.firestoreService, required this.userId});
+
+  @override
+  State<_SearchTab> createState() => _SearchTabState();
+}
+
+class _SearchTabState extends State<_SearchTab>
+    with SingleTickerProviderStateMixin {
+  final _searchController = TextEditingController();
+  late TabController _tabController;
+  String _query = '';
+  List<String> _selectedTags = [];
+  bool _safeSearch = true;
+
+  final List<String> _popularTags = [
+    'romance',
+    'tragedy',
+    'comedy',
+    'bl',
+    'fantasy',
+    'mystery',
+    'shortstory',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+    _loadSafeSearch();
+  }
+
+  Future<void> _loadSafeSearch() async {
+    final safe = await widget.firestoreService.getSafeSearch(widget.userId);
+    setState(() => _safeSearch = safe);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDarkMode = themeService.isDarkMode;
+
+    return SafeArea(
+      child: Column(
+        children: [
+          // Search header
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Search stories, writers...',
+                hintStyle: TextStyle(
+                  color: isDarkMode ? _darkTextSecondary : Colors.grey,
+                ),
+                prefixIcon: Icon(
+                  Icons.search,
+                  color: isDarkMode ? _darkTextSecondary : Colors.grey,
+                ),
+                suffixIcon: _query.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _query = '');
+                        },
+                      )
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                filled: true,
+                fillColor: isDarkMode ? _darkCard : Colors.grey.shade200,
+              ),
+              style: TextStyle(color: isDarkMode ? _darkText : Colors.black),
+              onChanged: (value) => setState(() => _query = value),
+            ),
+          ),
+
+          // Filter tags
+          if (_query.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  Text(
+                    'REFINE BY:',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isDarkMode ? _darkTextSecondary : Colors.grey,
                     ),
                   ),
+                  const SizedBox(width: 8),
+                  ..._popularTags
+                      .take(3)
+                      .map(
+                        (tag) => Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: FilterChip(
+                            label: Text(tag.toUpperCase()),
+                            selected: _selectedTags.contains(tag),
+                            onSelected: (selected) {
+                              setState(() {
+                                if (selected) {
+                                  _selectedTags.add(tag);
+                                } else {
+                                  _selectedTags.remove(tag);
+                                }
+                              });
+                            },
+                            selectedColor: _accentColor,
+                            labelStyle: TextStyle(
+                              fontSize: 10,
+                              color: _selectedTags.contains(tag)
+                                  ? Colors.white
+                                  : (isDarkMode ? _darkText : Colors.black),
+                            ),
+                            backgroundColor: isDarkMode
+                                ? _darkCard
+                                : Colors.grey.shade200,
+                          ),
+                        ),
+                      ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+
+          // Tabs
+          TabBar(
+            controller: _tabController,
+            labelColor: _accentColor,
+            unselectedLabelColor: isDarkMode ? _darkTextSecondary : Colors.grey,
+            indicatorColor: _accentColor,
+            tabs: const [
+              Tab(text: 'STORIES'),
+              Tab(text: 'PROFILES'),
+              Tab(text: 'TAGS'),
+            ],
+          ),
+
+          // Tab content
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildStoriesTab(isDarkMode),
+                _buildProfilesTab(isDarkMode),
+                _buildTagsTab(isDarkMode),
               ],
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            book.title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: isDarkMode ? _darkText : Colors.black,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildStoriesTab(bool isDarkMode) {
+    if (_query.isEmpty) {
+      return Center(
+        child: Text(
+          'Search for stories by title or writer',
+          style: TextStyle(
+            color: isDarkMode ? _darkTextSecondary : Colors.grey,
+          ),
+        ),
+      );
+    }
+
+    return FutureBuilder<List<BookModel>>(
+      future: widget.firestoreService.searchBooks(
+        _query,
+        safeSearch: _safeSearch,
+      ),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(color: _accentColor),
+          );
+        }
+
+        var books = snapshot.data ?? [];
+        if (_selectedTags.isNotEmpty) {
+          books = books
+              .where(
+                (b) =>
+                    b.tags.any((t) => _selectedTags.contains(t.toLowerCase())),
+              )
+              .toList();
+        }
+
+        if (books.isEmpty) {
+          return const Center(child: Text('No stories found'));
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: books.length,
+          itemBuilder: (context, index) => _BookListItem(
+            book: books[index],
+            firestoreService: widget.firestoreService,
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildProfilesTab(bool isDarkMode) {
+    if (_query.isEmpty) {
+      return Center(
+        child: Text(
+          'Search for writers by nickname',
+          style: TextStyle(
+            color: isDarkMode ? _darkTextSecondary : Colors.grey,
+          ),
+        ),
+      );
+    }
+
+    return FutureBuilder<List<UserModel>>(
+      future: widget.firestoreService.searchWriters(_query),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(color: _accentColor),
+          );
+        }
+
+        final writers = snapshot.data ?? [];
+        if (writers.isEmpty) {
+          return const Center(child: Text('No writers found'));
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: writers.length,
+          itemBuilder: (context, index) {
+            final writer = writers[index];
+            return ListTile(
+              leading: CircleAvatar(
+                backgroundColor: _accentColor.withOpacity(0.2),
+                child: Text(
+                  writer.displayName[0].toUpperCase(),
+                  style: const TextStyle(color: _accentColor),
+                ),
+              ),
+              title: Text(
+                writer.displayName,
+                style: TextStyle(color: isDarkMode ? _darkText : Colors.black),
+              ),
+              subtitle: Text(
+                writer.email,
+                style: TextStyle(
+                  color: isDarkMode ? _darkTextSecondary : Colors.grey,
+                ),
+              ),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => _WriterProfileScreen(
+                    writer: writer,
+                    firestoreService: widget.firestoreService,
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildTagsTab(bool isDarkMode) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: _popularTags
+            .map(
+              (tag) => ActionChip(
+                label: Text('#$tag'),
+                onPressed: () {
+                  _searchController.text = tag;
+                  setState(() {
+                    _query = tag;
+                    _tabController.animateTo(0);
+                  });
+                },
+                backgroundColor: isDarkMode ? _darkCard : Colors.grey.shade200,
+                labelStyle: TextStyle(
+                  color: isDarkMode ? _darkText : Colors.black,
+                ),
+              ),
+            )
+            .toList(),
       ),
     );
   }
@@ -511,7 +895,6 @@ class _LibraryTabState extends State<_LibraryTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
           Padding(
             padding: const EdgeInsets.all(16),
             child: Text(
@@ -524,7 +907,6 @@ class _LibraryTabState extends State<_LibraryTab> {
             ),
           ),
 
-          // Library content
           Expanded(
             child: FutureBuilder<List<BookModel>>(
               future: libraryBooks,
@@ -572,7 +954,6 @@ class _LibraryTabState extends State<_LibraryTab> {
                           const SizedBox(height: 24),
                           ElevatedButton(
                             onPressed: () {
-                              // Navigate to browse
                               final state = context
                                   .findAncestorStateOfType<_ReaderHomeState>();
                               state?.setState(() => state._currentIndex = 0);
@@ -748,14 +1129,6 @@ class _NotificationsTabState extends State<_NotificationsTab> {
     notifications = widget.firestoreService.getUserNotifications(widget.userId);
   }
 
-  void _refreshNotifications() {
-    setState(() {
-      notifications = widget.firestoreService.getUserNotifications(
-        widget.userId,
-      );
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final isDarkMode = themeService.isDarkMode;
@@ -764,7 +1137,6 @@ class _NotificationsTabState extends State<_NotificationsTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
           Padding(
             padding: const EdgeInsets.all(16),
             child: Text(
@@ -777,7 +1149,6 @@ class _NotificationsTabState extends State<_NotificationsTab> {
             ),
           ),
 
-          // Notifications list
           Expanded(
             child: FutureBuilder<List<NotificationModel>>(
               future: notifications,
@@ -810,130 +1181,73 @@ class _NotificationsTabState extends State<_NotificationsTab> {
                                 : Colors.grey.shade600,
                           ),
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Updates from books in your library\nwill appear here',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: isDarkMode
-                                ? _darkTextSecondary
-                                : Colors.grey.shade500,
-                          ),
-                        ),
                       ],
                     ),
                   );
                 }
 
-                return RefreshIndicator(
-                  onRefresh: () async => _refreshNotifications(),
-                  color: _accentColor,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: notificationList.length,
-                    itemBuilder: (context, index) {
-                      final notif = notificationList[index];
-                      return _NotificationCard(
-                        notification: notif,
-                        firestoreService: widget.firestoreService,
-                        onRead: _refreshNotifications,
-                        isDarkMode: isDarkMode,
-                      );
-                    },
-                  ),
+                return ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: notificationList.length,
+                  itemBuilder: (context, index) {
+                    final notif = notificationList[index];
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: _accentColor.withOpacity(0.2),
+                        child: const Icon(
+                          Icons.notifications,
+                          color: _accentColor,
+                          size: 20,
+                        ),
+                      ),
+                      title: Text(
+                        notif.title,
+                        style: TextStyle(
+                          fontWeight: notif.read
+                              ? FontWeight.normal
+                              : FontWeight.bold,
+                          color: isDarkMode ? _darkText : Colors.black,
+                          fontSize: 14,
+                        ),
+                      ),
+                      subtitle: Text(
+                        notif.message,
+                        style: TextStyle(
+                          color: isDarkMode
+                              ? _darkTextSecondary
+                              : Colors.grey.shade600,
+                          fontSize: 12,
+                        ),
+                        maxLines: 2,
+                      ),
+                      trailing: notif.read
+                          ? null
+                          : Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: _accentColor,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                      onTap: () async {
+                        if (!notif.read) {
+                          await widget.firestoreService.markNotificationAsRead(
+                            notif.id,
+                          );
+                          setState(
+                            () => notifications = widget.firestoreService
+                                .getUserNotifications(widget.userId),
+                          );
+                        }
+                      },
+                    );
+                  },
                 );
               },
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _NotificationCard extends StatelessWidget {
-  final NotificationModel notification;
-  final FirestoreService firestoreService;
-  final VoidCallback onRead;
-  final bool isDarkMode;
-
-  const _NotificationCard({
-    required this.notification,
-    required this.firestoreService,
-    required this.onRead,
-    required this.isDarkMode,
-  });
-
-  IconData _getNotificationIcon() {
-    if (notification.title.toLowerCase().contains('chapter')) {
-      return Icons.menu_book;
-    } else if (notification.title.toLowerCase().contains('like') ||
-        notification.title.toLowerCase().contains('vote')) {
-      return Icons.thumb_up;
-    } else if (notification.title.toLowerCase().contains('comment') ||
-        notification.title.toLowerCase().contains('reply')) {
-      return Icons.comment;
-    }
-    return Icons.notifications;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: notification.read
-            ? (isDarkMode ? _darkCard : Colors.white)
-            : (isDarkMode
-                  ? _accentColor.withOpacity(0.1)
-                  : _accentColor.withOpacity(0.05)),
-        borderRadius: BorderRadius.circular(12),
-        border: notification.read
-            ? null
-            : Border.all(color: _accentColor.withOpacity(0.3)),
-      ),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: _accentColor.withOpacity(0.2),
-          child: Icon(_getNotificationIcon(), color: _accentColor, size: 20),
-        ),
-        title: Text(
-          notification.title,
-          style: TextStyle(
-            fontWeight: notification.read ? FontWeight.normal : FontWeight.bold,
-            color: isDarkMode ? _darkText : Colors.black,
-            fontSize: 14,
-          ),
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Text(
-            notification.message,
-            style: TextStyle(
-              color: isDarkMode ? _darkTextSecondary : Colors.grey.shade600,
-              fontSize: 12,
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        trailing: notification.read
-            ? null
-            : Container(
-                width: 8,
-                height: 8,
-                decoration: const BoxDecoration(
-                  color: _accentColor,
-                  shape: BoxShape.circle,
-                ),
-              ),
-        onTap: () async {
-          if (!notification.read) {
-            await firestoreService.markNotificationAsRead(notification.id);
-            onRead();
-          }
-        },
       ),
     );
   }
@@ -957,13 +1271,25 @@ class _ProfileTab extends StatefulWidget {
 
 class _ProfileTabState extends State<_ProfileTab> {
   late final user = widget.authService.getCurrentUser();
-  late Future<List<BookModel>> recentBooks;
+  String _nickname = '';
+  bool _safeSearch = true;
 
   @override
   void initState() {
     super.initState();
-    recentBooks = widget.firestoreService.getReaderLibrary(widget.userId);
+    _loadUserData();
     themeService.addListener(_onThemeChanged);
+  }
+
+  void _loadUserData() async {
+    final nickname = await widget.authService.getUserNickname(widget.userId);
+    final safeSearch = await widget.firestoreService.getSafeSearch(
+      widget.userId,
+    );
+    setState(() {
+      _nickname = nickname;
+      _safeSearch = safeSearch;
+    });
   }
 
   @override
@@ -972,9 +1298,7 @@ class _ProfileTabState extends State<_ProfileTab> {
     super.dispose();
   }
 
-  void _onThemeChanged() {
-    setState(() {});
-  }
+  void _onThemeChanged() => setState(() {});
 
   @override
   Widget build(BuildContext context) {
@@ -984,7 +1308,6 @@ class _ProfileTabState extends State<_ProfileTab> {
       child: SingleChildScrollView(
         child: Column(
           children: [
-            // Header
             Padding(
               padding: const EdgeInsets.all(16),
               child: Row(
@@ -1003,15 +1326,12 @@ class _ProfileTabState extends State<_ProfileTab> {
                       isDarkMode ? Icons.light_mode : Icons.dark_mode,
                       color: isDarkMode ? _darkText : Colors.black,
                     ),
-                    onPressed: () {
-                      themeService.setDarkMode(!isDarkMode);
-                    },
+                    onPressed: () => themeService.setDarkMode(!isDarkMode),
                   ),
                 ],
               ),
             ),
 
-            // Profile info
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Container(
@@ -1037,7 +1357,9 @@ class _ProfileTabState extends State<_ProfileTab> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            user?.displayName ?? 'Reader',
+                            _nickname.isNotEmpty
+                                ? _nickname
+                                : (user?.displayName ?? 'Reader'),
                             style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
@@ -1057,6 +1379,13 @@ class _ProfileTabState extends State<_ProfileTab> {
                         ],
                       ),
                     ),
+                    IconButton(
+                      icon: Icon(
+                        Icons.edit,
+                        color: isDarkMode ? _darkTextSecondary : Colors.grey,
+                      ),
+                      onPressed: () => _showEditNicknameDialog(context),
+                    ),
                   ],
                 ),
               ),
@@ -1064,106 +1393,7 @@ class _ProfileTabState extends State<_ProfileTab> {
 
             const SizedBox(height: 24),
 
-            // Recently Read section
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  const Icon(Icons.history, color: _accentColor, size: 20),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Recently Read',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: isDarkMode ? _darkText : Colors.black,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            FutureBuilder<List<BookModel>>(
-              future: recentBooks,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Padding(
-                    padding: EdgeInsets.all(32),
-                    child: CircularProgressIndicator(color: _accentColor),
-                  );
-                }
-
-                final books = snapshot.data ?? [];
-                if (books.isEmpty) {
-                  return Padding(
-                    padding: const EdgeInsets.all(32),
-                    child: Text(
-                      'No books read yet',
-                      style: TextStyle(
-                        color: isDarkMode
-                            ? _darkTextSecondary
-                            : Colors.grey.shade600,
-                      ),
-                    ),
-                  );
-                }
-
-                return SizedBox(
-                  height: 180,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    itemCount: books.take(10).length,
-                    itemBuilder: (context, index) {
-                      final book = books[index];
-                      return Container(
-                        width: 100,
-                        margin: const EdgeInsets.symmetric(horizontal: 4),
-                        child: GestureDetector(
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => _BookDetailScreen(
-                                book: book,
-                                firestoreService: widget.firestoreService,
-                              ),
-                            ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: _buildBookCover(
-                                  book.coverImageUrl,
-                                  width: 100,
-                                  height: 130,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                book.title,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: isDarkMode ? _darkText : Colors.black,
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                );
-              },
-            ),
-
-            const SizedBox(height: 24),
-
-            // Settings section
+            // Settings
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Container(
@@ -1173,11 +1403,26 @@ class _ProfileTabState extends State<_ProfileTab> {
                 ),
                 child: Column(
                   children: [
-                    _buildSettingsTile(
-                      icon: Icons.lock_outline,
-                      title: 'Change Password',
+                    ListTile(
+                      leading: Icon(
+                        Icons.lock_outline,
+                        color: isDarkMode
+                            ? _darkTextSecondary
+                            : Colors.grey.shade600,
+                      ),
+                      title: Text(
+                        'Change Password',
+                        style: TextStyle(
+                          color: isDarkMode ? _darkText : Colors.black,
+                        ),
+                      ),
+                      trailing: Icon(
+                        Icons.chevron_right,
+                        color: isDarkMode
+                            ? _darkTextSecondary
+                            : Colors.grey.shade400,
+                      ),
                       onTap: () => _showChangePasswordDialog(context),
-                      isDarkMode: isDarkMode,
                     ),
                     Divider(
                       color: isDarkMode
@@ -1185,52 +1430,112 @@ class _ProfileTabState extends State<_ProfileTab> {
                           : Colors.grey.shade300,
                       height: 1,
                     ),
-                    _buildSettingsTile(
-                      icon: Icons.logout,
-                      title: 'Logout',
+                    SwitchListTile(
+                      secondary: Icon(
+                        Icons.shield_outlined,
+                        color: isDarkMode
+                            ? _darkTextSecondary
+                            : Colors.grey.shade600,
+                      ),
+                      title: Text(
+                        'Safe Search',
+                        style: TextStyle(
+                          color: isDarkMode ? _darkText : Colors.black,
+                        ),
+                      ),
+                      subtitle: Text(
+                        'Hide mature content',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isDarkMode ? _darkTextSecondary : Colors.grey,
+                        ),
+                      ),
+                      value: _safeSearch,
+                      activeColor: _accentColor,
+                      onChanged: (value) async {
+                        await widget.firestoreService.updateSafeSearch(
+                          widget.userId,
+                          value,
+                        );
+                        setState(() => _safeSearch = value);
+                      },
+                    ),
+                    Divider(
+                      color: isDarkMode
+                          ? Colors.grey.shade800
+                          : Colors.grey.shade300,
+                      height: 1,
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.logout, color: Colors.red),
+                      title: const Text(
+                        'Logout',
+                        style: TextStyle(color: Colors.red),
+                      ),
+                      trailing: Icon(
+                        Icons.chevron_right,
+                        color: isDarkMode
+                            ? _darkTextSecondary
+                            : Colors.grey.shade400,
+                      ),
                       onTap: () => _logout(context),
-                      isDarkMode: isDarkMode,
-                      isDestructive: true,
                     ),
                   ],
                 ),
               ),
             ),
-
-            const SizedBox(height: 32),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildSettingsTile({
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-    required bool isDarkMode,
-    bool isDestructive = false,
-  }) {
-    return ListTile(
-      leading: Icon(
-        icon,
-        color: isDestructive
-            ? Colors.red
-            : (isDarkMode ? _darkTextSecondary : Colors.grey.shade600),
-      ),
-      title: Text(
-        title,
-        style: TextStyle(
-          color: isDestructive
-              ? Colors.red
-              : (isDarkMode ? _darkText : Colors.black),
+  void _showEditNicknameDialog(BuildContext context) {
+    final isDarkMode = themeService.isDarkMode;
+    final controller = TextEditingController(text: _nickname);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDarkMode ? _darkCard : Colors.white,
+        title: Text(
+          'Edit Nickname',
+          style: TextStyle(color: isDarkMode ? _darkText : Colors.black),
         ),
+        content: TextField(
+          controller: controller,
+          decoration: InputDecoration(
+            labelText: 'Nickname',
+            labelStyle: TextStyle(
+              color: isDarkMode ? _darkTextSecondary : Colors.grey,
+            ),
+          ),
+          style: TextStyle(color: isDarkMode ? _darkText : Colors.black),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                color: isDarkMode ? _darkTextSecondary : Colors.grey,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              await widget.authService.updateNickname(controller.text);
+              Navigator.pop(ctx);
+              _loadUserData();
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('Nickname updated')));
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: _accentColor),
+            child: const Text('Save'),
+          ),
+        ],
       ),
-      trailing: Icon(
-        Icons.chevron_right,
-        color: isDarkMode ? _darkTextSecondary : Colors.grey.shade400,
-      ),
-      onTap: onTap,
     );
   }
 
@@ -1371,24 +1676,32 @@ class _BookDetailScreen extends StatefulWidget {
 
 class _BookDetailScreenState extends State<_BookDetailScreen> {
   late Future<List<ChapterModel>> chapters;
+  late Future<int> totalVotes;
+  late Future<int> chapterCount;
+  late Future<int> commentCount;
   bool _inLibrary = false;
+  bool _askedToAddLibrary = false;
   final currentUser = FirebaseAuth.instance.currentUser;
 
   @override
   void initState() {
     super.initState();
     chapters = widget.firestoreService.getChaptersByBook(widget.book.id);
+    totalVotes = widget.firestoreService.getTotalVotesForBook(widget.book.id);
+    chapterCount = widget.firestoreService.getChapterCount(widget.book.id);
+    commentCount = widget.firestoreService.getCommentCount(widget.book.id);
     _checkLibrary();
+    // Increment read count
+    widget.firestoreService.incrementReadCount(widget.book.id);
   }
 
   Future<void> _checkLibrary() async {
     if (currentUser != null) {
-      final library = await widget.firestoreService.getReaderLibrary(
+      final inLib = await widget.firestoreService.isBookInLibrary(
         currentUser!.uid,
+        widget.book.id,
       );
-      setState(() {
-        _inLibrary = library.any((b) => b.id == widget.book.id);
-      });
+      setState(() => _inLibrary = inLib);
     }
   }
 
@@ -1398,338 +1711,408 @@ class _BookDetailScreenState extends State<_BookDetailScreen> {
 
     return Theme(
       data: isDarkMode
-          ? ThemeData.dark().copyWith(
-              scaffoldBackgroundColor: _darkBg,
-              appBarTheme: const AppBarTheme(
-                backgroundColor: _darkBg,
-                elevation: 0,
-              ),
-            )
+          ? ThemeData.dark().copyWith(scaffoldBackgroundColor: _darkBg)
           : ThemeData.light().copyWith(
               scaffoldBackgroundColor: Colors.grey.shade100,
-              appBarTheme: const AppBarTheme(
-                backgroundColor: Colors.white,
-                elevation: 0,
-              ),
             ),
-      child: Scaffold(
-        body: CustomScrollView(
-          slivers: [
-            // App Bar with cover
-            SliverAppBar(
-              expandedHeight: 280,
-              pinned: true,
-              backgroundColor: isDarkMode ? _darkBg : Colors.white,
-              flexibleSpace: FlexibleSpaceBar(
-                background: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    _buildBookCover(
-                      widget.book.coverImageUrl,
-                      fit: BoxFit.cover,
-                    ),
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.transparent,
-                            (isDarkMode ? _darkBg : Colors.white).withOpacity(
-                              0.9,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
+      child: WillPopScope(
+        onWillPop: () async {
+          if (!_inLibrary && !_askedToAddLibrary && currentUser != null) {
+            _askedToAddLibrary = true;
+            final shouldAdd = await showDialog<bool>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                backgroundColor: isDarkMode ? _darkCard : Colors.white,
+                title: Text(
+                  'Add to Library?',
+                  style: TextStyle(
+                    color: isDarkMode ? _darkText : Colors.black,
+                  ),
                 ),
-              ),
-            ),
-
-            // Book info
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.book.title,
+                content: Text(
+                  'Would you like to add "${widget.book.title}" to your library?',
+                  style: TextStyle(
+                    color: isDarkMode
+                        ? _darkTextSecondary
+                        : Colors.grey.shade700,
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: Text(
+                      'No',
                       style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: isDarkMode ? _darkText : Colors.black,
+                        color: isDarkMode ? _darkTextSecondary : Colors.grey,
                       ),
                     ),
-                    const SizedBox(height: 8),
-
-                    if (widget.book.category.isNotEmpty) ...[
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: _accentColor.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              widget.book.category,
-                              style: const TextStyle(
-                                color: _accentColor,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-                          if (widget.book.isCompleted) ...[
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.green.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Text(
-                                'Completed',
-                                style: TextStyle(
-                                  color: Colors.green,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                          ],
-                          if (widget.book.isMature) ...[
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.red.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Text(
-                                '18+',
-                                style: TextStyle(
-                                  color: Colors.red,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
+                  ),
+                  ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _accentColor,
+                    ),
+                    child: const Text('Yes'),
+                  ),
+                ],
+              ),
+            );
+            if (shouldAdd == true) {
+              try {
+                await widget.firestoreService.addBookToLibrary(
+                  currentUser!.uid,
+                  widget.book.id,
+                );
+                setState(() => _inLibrary = true);
+              } catch (e) {
+                // Silently fail - permission error
+              }
+            }
+          }
+          return true;
+        },
+        child: Scaffold(
+          body: CustomScrollView(
+            slivers: [
+              SliverAppBar(
+                expandedHeight: 200,
+                pinned: true,
+                backgroundColor: isDarkMode ? _darkBg : Colors.white,
+                flexibleSpace: FlexibleSpaceBar(
+                  background: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      _buildBookCover(
+                        widget.book.coverImageUrl,
+                        fit: BoxFit.cover,
                       ),
-                      const SizedBox(height: 16),
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              (isDarkMode ? _darkBg : Colors.white).withOpacity(
+                                0.9,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ],
+                  ),
+                ),
+                actions: [
+                  IconButton(icon: const Icon(Icons.share), onPressed: () {}),
+                  IconButton(
+                    icon: const Icon(Icons.more_vert),
+                    onPressed: () {},
+                  ),
+                ],
+              ),
 
-                    // Add to library button
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: () => _startReading(context),
-                            icon: const Icon(Icons.play_arrow),
-                            label: const Text('Start Reading'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: _accentColor,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        IconButton(
-                          onPressed: _toggleLibrary,
-                          icon: Icon(
-                            _inLibrary ? Icons.bookmark : Icons.bookmark_border,
-                            color: _accentColor,
-                            size: 28,
-                          ),
-                          style: IconButton.styleFrom(
-                            backgroundColor: _accentColor.withOpacity(0.1),
-                            padding: const EdgeInsets.all(12),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    // Description
-                    if (widget.book.description.isNotEmpty) ...[
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
                       Text(
-                        'Description',
+                        widget.book.title,
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: 22,
                           fontWeight: FontWeight.bold,
                           color: isDarkMode ? _darkText : Colors.black,
                         ),
+                        textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        widget.book.description,
+                        widget.book.writerNickname.isNotEmpty
+                            ? widget.book.writerNickname
+                            : 'Unknown Writer',
                         style: TextStyle(
                           fontSize: 14,
-                          color: isDarkMode
-                              ? _darkTextSecondary
-                              : Colors.grey.shade700,
-                          height: 1.5,
+                          color: isDarkMode ? _darkTextSecondary : Colors.grey,
                         ),
                       ),
-                      const SizedBox(height: 20),
-                    ],
+                      const SizedBox(height: 16),
 
-                    // Tags
-                    if (widget.book.tags.isNotEmpty) ...[
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: widget.book.tags.map((tag) {
-                          return Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
+                      // Stats row
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _StatItem(
+                            icon: Icons.visibility,
+                            value: _formatNumber(widget.book.readCount),
+                            label: 'Reads',
+                          ),
+                          const SizedBox(width: 24),
+                          FutureBuilder<int>(
+                            future: totalVotes,
+                            builder: (_, s) => _StatItem(
+                              icon: Icons.star,
+                              value: _formatNumber(s.data ?? 0),
+                              label: 'Votes',
                             ),
+                          ),
+                          const SizedBox(width: 24),
+                          FutureBuilder<int>(
+                            future: chapterCount,
+                            builder: (_, s) => _StatItem(
+                              icon: Icons.list,
+                              value: '${s.data ?? 0}',
+                              label: 'Parts',
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      // Read and Add to Library buttons
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () => _startReading(context),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _accentColor,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(24),
+                                ),
+                              ),
+                              child: const Text('Read'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Container(
                             decoration: BoxDecoration(
-                              color: isDarkMode
-                                  ? Colors.grey.shade800
-                                  : Colors.grey.shade200,
-                              borderRadius: BorderRadius.circular(16),
+                              color: _accentColor.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(24),
                             ),
-                            child: Text(
-                              '#$tag',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: isDarkMode
-                                    ? _darkTextSecondary
-                                    : Colors.grey.shade700,
+                            child: IconButton(
+                              onPressed: _toggleLibrary,
+                              icon: Icon(
+                                _inLibrary ? Icons.check : Icons.add,
+                                color: _accentColor,
                               ),
                             ),
-                          );
-                        }).toList(),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 20),
-                    ],
 
-                    // Chapter list
-                    Text(
-                      'Chapters',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: isDarkMode ? _darkText : Colors.black,
+                      const SizedBox(height: 20),
+
+                      // Tags
+                      if (widget.book.tags.isNotEmpty)
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: widget.book.tags
+                              .map(
+                                (tag) => Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isDarkMode
+                                        ? Colors.grey.shade800
+                                        : Colors.grey.shade200,
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: Text(
+                                    tag,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: isDarkMode
+                                          ? _darkTextSecondary
+                                          : Colors.grey.shade700,
+                                    ),
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                        ),
+
+                      const SizedBox(height: 20),
+
+                      // Description
+                      if (widget.book.description.isNotEmpty)
+                        Text(
+                          widget.book.description,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: isDarkMode
+                                ? _darkTextSecondary
+                                : Colors.grey.shade700,
+                            height: 1.6,
+                          ),
+                        ),
+
+                      const SizedBox(height: 24),
+
+                      // Chapter list header
+                      Row(
+                        children: [
+                          Text(
+                            'Table of Contents',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: isDarkMode ? _darkText : Colors.black,
+                            ),
+                          ),
+                          const Spacer(),
+                          FutureBuilder<int>(
+                            future: chapterCount,
+                            builder: (_, s) => Text(
+                              '${s.data ?? 0} Parts',
+                              style: TextStyle(
+                                color: isDarkMode
+                                    ? _darkTextSecondary
+                                    : Colors.grey,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
 
-            // Chapters
-            FutureBuilder<List<ChapterModel>>(
-              future: chapters,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const SliverToBoxAdapter(
-                    child: Center(
-                      child: CircularProgressIndicator(color: _accentColor),
-                    ),
-                  );
-                }
-
-                final chapterList = snapshot.data ?? [];
-                if (chapterList.isEmpty) {
-                  return SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.all(32),
+              // Chapters
+              FutureBuilder<List<ChapterModel>>(
+                future: chapters,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const SliverToBoxAdapter(
                       child: Center(
-                        child: Text(
-                          'No chapters available yet',
+                        child: CircularProgressIndicator(color: _accentColor),
+                      ),
+                    );
+                  }
+
+                  final chapterList = snapshot.data ?? [];
+                  if (chapterList.isEmpty) {
+                    return SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Center(
+                          child: Text(
+                            'No chapters available yet',
+                            style: TextStyle(
+                              color: isDarkMode
+                                  ? _darkTextSecondary
+                                  : Colors.grey,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+
+                  return SliverList(
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      final chapter = chapterList[index];
+                      return ListTile(
+                        leading: Text(
+                          '(${chapter.chapterNumber})',
                           style: TextStyle(
                             color: isDarkMode
                                 ? _darkTextSecondary
                                 : Colors.grey,
                           ),
                         ),
-                      ),
-                    ),
-                  );
-                }
-
-                return SliverList(
-                  delegate: SliverChildBuilderDelegate((context, index) {
-                    final chapter = chapterList[index];
-                    return ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: _accentColor.withOpacity(0.2),
-                        child: Text(
-                          '${chapter.chapterNumber}',
-                          style: const TextStyle(
-                            color: _accentColor,
-                            fontWeight: FontWeight.bold,
+                        title: Text(
+                          chapter.title,
+                          style: TextStyle(
+                            color: isDarkMode ? _darkText : Colors.black,
                           ),
                         ),
-                      ),
-                      title: Text(
-                        chapter.title,
-                        style: TextStyle(
-                          color: isDarkMode ? _darkText : Colors.black,
+                        trailing: Icon(
+                          Icons.chevron_right,
+                          color: isDarkMode ? _darkTextSecondary : Colors.grey,
                         ),
-                      ),
-                      trailing: Icon(
-                        Icons.chevron_right,
-                        color: isDarkMode ? _darkTextSecondary : Colors.grey,
-                      ),
-                      onTap: () => _openChapter(context, chapter, chapterList),
-                    );
-                  }, childCount: chapterList.length),
-                );
-              },
-            ),
-          ],
+                        onTap: () =>
+                            _openChapter(context, chapter, chapterList),
+                      );
+                    }, childCount: chapterList.length),
+                  );
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
   void _toggleLibrary() async {
-    if (currentUser == null) return;
+    if (currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please log in to add to library')),
+      );
+      return;
+    }
 
-    if (_inLibrary) {
-      await widget.firestoreService.removeBookFromLibrary(
-        currentUser!.uid,
-        widget.book.id,
-      );
-      setState(() => _inLibrary = false);
+    try {
+      if (_inLibrary) {
+        await widget.firestoreService.removeBookFromLibrary(
+          currentUser!.uid,
+          widget.book.id,
+        );
+        setState(() => _inLibrary = false);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Removed from library')));
+      } else {
+        await widget.firestoreService.addBookToLibrary(
+          currentUser!.uid,
+          widget.book.id,
+        );
+        setState(() => _inLibrary = true);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Added to library')));
+      }
+    } catch (e) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Removed from library')));
-    } else {
-      await widget.firestoreService.addBookToLibrary(
-        currentUser!.uid,
-        widget.book.id,
-      );
-      setState(() => _inLibrary = true);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Added to library')));
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
 
   void _startReading(BuildContext context) async {
     final chapterList = await chapters;
     if (chapterList.isNotEmpty) {
+      // Check for saved position
+      if (currentUser != null && _inLibrary) {
+        final position = await widget.firestoreService.getReadingPosition(
+          currentUser!.uid,
+          widget.book.id,
+        );
+        if (position != null && position['lastChapterId'] != null) {
+          final lastChapter = chapterList.firstWhere(
+            (c) => c.id == position['lastChapterId'],
+            orElse: () => chapterList.first,
+          );
+          _openChapter(
+            context,
+            lastChapter,
+            chapterList,
+            scrollPosition: position['scrollPosition'],
+          );
+          return;
+        }
+      }
       _openChapter(context, chapterList.first, chapterList);
     }
   }
@@ -1737,8 +2120,9 @@ class _BookDetailScreenState extends State<_BookDetailScreen> {
   void _openChapter(
     BuildContext context,
     ChapterModel chapter,
-    List<ChapterModel> allChapters,
-  ) {
+    List<ChapterModel> allChapters, {
+    double scrollPosition = 0.0,
+  }) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -1746,8 +2130,55 @@ class _BookDetailScreenState extends State<_BookDetailScreen> {
           chapter: chapter,
           allChapters: allChapters,
           firestoreService: widget.firestoreService,
+          book: widget.book,
+          initialScrollPosition: scrollPosition,
         ),
       ),
+    );
+  }
+}
+
+class _StatItem extends StatelessWidget {
+  final IconData icon;
+  final String value;
+  final String label;
+
+  const _StatItem({
+    required this.icon,
+    required this.value,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDarkMode = themeService.isDarkMode;
+    return Column(
+      children: [
+        Row(
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: isDarkMode ? _darkTextSecondary : Colors.grey,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              value,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: isDarkMode ? _darkText : Colors.black,
+              ),
+            ),
+          ],
+        ),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: isDarkMode ? _darkTextSecondary : Colors.grey,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1757,11 +2188,15 @@ class _ChapterReadScreen extends StatefulWidget {
   final ChapterModel chapter;
   final List<ChapterModel> allChapters;
   final FirestoreService firestoreService;
+  final BookModel book;
+  final double initialScrollPosition;
 
   const _ChapterReadScreen({
     required this.chapter,
     required this.allChapters,
     required this.firestoreService,
+    required this.book,
+    this.initialScrollPosition = 0.0,
   });
 
   @override
@@ -1770,70 +2205,127 @@ class _ChapterReadScreen extends StatefulWidget {
 
 class _ChapterReadScreenState extends State<_ChapterReadScreen> {
   late ChapterModel _currentChapter;
+  late ScrollController _scrollController;
   late Future<int> voteCount;
   late Future<bool> hasVoted;
   late Future<List<CommentModel>> comments;
   final currentUser = FirebaseAuth.instance.currentUser;
+  double _fontSize = 16.0;
 
   @override
   void initState() {
     super.initState();
     _currentChapter = widget.chapter;
+    _scrollController = ScrollController(
+      initialScrollOffset: widget.initialScrollPosition,
+    );
     _refreshData();
+  }
+
+  @override
+  void dispose() {
+    _saveReadingPosition();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _saveReadingPosition() async {
+    if (currentUser != null) {
+      final inLibrary = await widget.firestoreService.isBookInLibrary(
+        currentUser!.uid,
+        widget.book.id,
+      );
+      if (inLibrary) {
+        await widget.firestoreService.saveReadingPosition(
+          currentUser!.uid,
+          widget.book.id,
+          _currentChapter.id,
+          _scrollController.offset,
+        );
+      }
+    }
   }
 
   void _refreshData() {
     voteCount = widget.firestoreService.getVoteCount(_currentChapter.id);
-    hasVoted = widget.firestoreService.hasUserVoted(
-      _currentChapter.id,
-      currentUser!.uid,
-    );
+    if (currentUser != null) {
+      hasVoted = widget.firestoreService.hasUserVoted(
+        _currentChapter.id,
+        currentUser!.uid,
+      );
+    } else {
+      hasVoted = Future.value(false);
+    }
     comments = widget.firestoreService.getCommentsByChapter(_currentChapter.id);
   }
 
-  Widget _buildFormattedContent(String content) {
+  // Parse text and build formatted TextSpans
+  List<TextSpan> _buildFormattedText(String content, bool isDarkMode) {
+    // First try to parse as Quill Delta JSON
+    String text;
     try {
       final deltaJson = jsonDecode(content) as List;
-      final spans = <TextSpan>[];
+      text = deltaJson
+          .map(
+            (op) => op is Map && op.containsKey('insert')
+                ? op['insert'].toString()
+                : '',
+          )
+          .join();
+    } catch (e) {
+      text = content;
+    }
 
-      for (var op in deltaJson) {
-        if (op is Map && op.containsKey('insert')) {
-          final text = op['insert'].toString();
-          final attributes = op['attributes'] as Map<String, dynamic>?;
+    final List<TextSpan> spans = [];
+    final RegExp pattern = RegExp(r'\*\*(.+?)\*\*|_(.+?)_|<u>(.+?)</u>');
+    final textColor = isDarkMode ? _darkText : Colors.black;
 
-          TextStyle style = TextStyle(
-            fontSize: 16,
-            color: themeService.isDarkMode ? _darkText : Colors.black,
-            height: 1.8,
-          );
-
-          if (attributes != null) {
-            if (attributes['bold'] == true) {
-              style = style.copyWith(fontWeight: FontWeight.bold);
-            }
-            if (attributes['italic'] == true) {
-              style = style.copyWith(fontStyle: FontStyle.italic);
-            }
-            if (attributes['underline'] == true) {
-              style = style.copyWith(decoration: TextDecoration.underline);
-            }
-          }
-
-          spans.add(TextSpan(text: text, style: style));
-        }
+    int lastEnd = 0;
+    for (final match in pattern.allMatches(text)) {
+      // Add plain text before match
+      if (match.start > lastEnd) {
+        spans.add(TextSpan(text: text.substring(lastEnd, match.start)));
       }
 
-      return Text.rich(TextSpan(children: spans));
-    } catch (e) {
-      return Text(
-        content,
-        style: TextStyle(
-          fontSize: 16,
-          color: themeService.isDarkMode ? _darkText : Colors.black,
-          height: 1.8,
-        ),
-      );
+      // Determine formatting type and add styled span
+      if (match.group(1) != null) {
+        // Bold **text**
+        spans.add(
+          TextSpan(
+            text: match.group(1),
+            style: TextStyle(fontWeight: FontWeight.bold, color: textColor),
+          ),
+        );
+      } else if (match.group(2) != null) {
+        // Italic _text_
+        spans.add(
+          TextSpan(
+            text: match.group(2),
+            style: TextStyle(fontStyle: FontStyle.italic, color: textColor),
+          ),
+        );
+      } else if (match.group(3) != null) {
+        // Underline <u>text</u>
+        spans.add(
+          TextSpan(
+            text: match.group(3),
+            style: TextStyle(
+              decoration: TextDecoration.underline,
+              color: textColor,
+            ),
+          ),
+        );
+      }
+
+      lastEnd = match.end;
     }
+
+    // Add remaining plain text
+    if (lastEnd < text.length) {
+      spans.add(TextSpan(text: text.substring(lastEnd)));
+    }
+
+    return spans.isEmpty ? [TextSpan(text: text)] : spans;
   }
 
   @override
@@ -1847,145 +2339,355 @@ class _ChapterReadScreenState extends State<_ChapterReadScreen> {
 
     return Theme(
       data: isDarkMode
-          ? ThemeData.dark().copyWith(
-              scaffoldBackgroundColor: _darkBg,
-              appBarTheme: const AppBarTheme(
-                backgroundColor: _darkBg,
-                elevation: 0,
-              ),
-            )
-          : ThemeData.light().copyWith(
-              scaffoldBackgroundColor: Colors.white,
-              appBarTheme: const AppBarTheme(
-                backgroundColor: Colors.white,
-                elevation: 0,
-              ),
-            ),
+          ? ThemeData.dark().copyWith(scaffoldBackgroundColor: _darkBg)
+          : ThemeData.light().copyWith(scaffoldBackgroundColor: Colors.white),
       child: Scaffold(
         appBar: AppBar(
           title: Text(
-            'Chapter ${_currentChapter.chapterNumber}',
-            style: TextStyle(color: isDarkMode ? _darkText : Colors.black),
+            _currentChapter.title,
+            style: TextStyle(
+              color: isDarkMode ? _darkText : Colors.black,
+              fontSize: 16,
+            ),
           ),
           iconTheme: IconThemeData(
             color: isDarkMode ? _darkText : Colors.black,
           ),
+          backgroundColor: isDarkMode ? _darkBg : Colors.white,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.text_fields),
+              onPressed: () => _showFontSizeDialog(context),
+            ),
+            IconButton(
+              icon: const Icon(Icons.list),
+              onPressed: () => _showChapterList(context),
+            ),
+          ],
         ),
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                _currentChapter.title,
+        body: GestureDetector(
+          onLongPressStart: (details) =>
+              _showInlineCommentDialog(context, details.globalPosition),
+          child: SingleChildScrollView(
+            controller: _scrollController,
+            padding: const EdgeInsets.all(20),
+            child: SelectableText.rich(
+              TextSpan(
+                children: _buildFormattedText(
+                  _currentChapter.content,
+                  isDarkMode,
+                ),
                 style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
+                  fontSize: _fontSize,
                   color: isDarkMode ? _darkText : Colors.black,
+                  height: 1.8,
                 ),
               ),
-              const SizedBox(height: 24),
-              _buildFormattedContent(_currentChapter.content),
-              const SizedBox(height: 32),
-
-              // Vote section
-              Row(
-                children: [
-                  FutureBuilder<bool>(
-                    future: hasVoted,
-                    builder: (context, snapshot) {
-                      final voted = snapshot.data ?? false;
-                      return IconButton(
-                        icon: Icon(
-                          voted ? Icons.thumb_up : Icons.thumb_up_outlined,
-                          color: voted
-                              ? _accentColor
-                              : (isDarkMode ? _darkTextSecondary : Colors.grey),
-                        ),
-                        onPressed: () async {
-                          await widget.firestoreService.addVote(
-                            _currentChapter.id,
-                            currentUser!.uid,
-                          );
-                          setState(() => _refreshData());
-                        },
-                      );
-                    },
-                  ),
-                  FutureBuilder<int>(
-                    future: voteCount,
-                    builder: (context, snapshot) {
-                      return Text(
-                        '${snapshot.data ?? 0} votes',
-                        style: TextStyle(
-                          color: isDarkMode ? _darkTextSecondary : Colors.grey,
-                        ),
-                      );
-                    },
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    icon: Icon(
-                      Icons.comment_outlined,
-                      color: isDarkMode ? _darkTextSecondary : Colors.grey,
-                    ),
-                    onPressed: () => _showCommentsSheet(context),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 24),
-
-              // Navigation buttons
-              Row(
-                children: [
-                  if (hasPrevious)
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () {
-                          setState(() {
-                            _currentChapter =
-                                widget.allChapters[currentIndex - 1];
-                            _refreshData();
-                          });
-                        },
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: _accentColor),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                        child: const Text(
-                          'Previous',
-                          style: TextStyle(color: _accentColor),
-                        ),
-                      ),
-                    )
-                  else
-                    const Spacer(),
-                  const SizedBox(width: 16),
-                  if (hasNext)
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () {
-                          setState(() {
-                            _currentChapter =
-                                widget.allChapters[currentIndex + 1];
-                            _refreshData();
-                          });
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _accentColor,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                        child: const Text('Next Chapter'),
-                      ),
-                    )
-                  else
-                    const Spacer(),
-                ],
+            ),
+          ),
+        ),
+        bottomNavigationBar: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: isDarkMode ? _darkCard : Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 10,
+                offset: const Offset(0, -2),
               ),
             ],
           ),
+          child: SafeArea(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                // Vote
+                FutureBuilder<bool>(
+                  future: hasVoted,
+                  builder: (context, snapshot) {
+                    final voted = snapshot.data ?? false;
+                    return _BottomBarItem(
+                      icon: voted ? Icons.star : Icons.star_border,
+                      label: 'Vote',
+                      color: voted ? Colors.amber : null,
+                      onTap: () async {
+                        if (currentUser == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Please log in to vote'),
+                            ),
+                          );
+                          return;
+                        }
+                        await widget.firestoreService.addVote(
+                          _currentChapter.id,
+                          currentUser!.uid,
+                        );
+                        setState(() => _refreshData());
+                      },
+                    );
+                  },
+                ),
+                // Comments
+                FutureBuilder<List<CommentModel>>(
+                  future: comments,
+                  builder: (context, snapshot) {
+                    return _BottomBarItem(
+                      icon: Icons.comment_outlined,
+                      label: '${snapshot.data?.length ?? 0}',
+                      onTap: () => _showCommentsSheet(context),
+                    );
+                  },
+                ),
+                // Share
+                _BottomBarItem(
+                  icon: Icons.share_outlined,
+                  label: 'Share',
+                  onTap: () {},
+                ),
+                // Previous/Next
+                if (hasPrevious)
+                  _BottomBarItem(
+                    icon: Icons.arrow_back,
+                    label: 'Prev',
+                    onTap: () {
+                      setState(() {
+                        _currentChapter = widget.allChapters[currentIndex - 1];
+                        _scrollController.jumpTo(0);
+                        _refreshData();
+                      });
+                    },
+                  ),
+                if (hasNext)
+                  _BottomBarItem(
+                    icon: Icons.arrow_forward,
+                    label: 'Next',
+                    onTap: () {
+                      setState(() {
+                        _currentChapter = widget.allChapters[currentIndex + 1];
+                        _scrollController.jumpTo(0);
+                        _refreshData();
+                      });
+                    },
+                  ),
+              ],
+            ),
+          ),
         ),
+      ),
+    );
+  }
+
+  void _showChapterList(BuildContext context) {
+    final isDarkMode = themeService.isDarkMode;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDarkMode ? _darkCard : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Column(
+        children: [
+          Container(
+            margin: const EdgeInsets.only(top: 12),
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade400,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              'Chapters',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: isDarkMode ? _darkText : Colors.black,
+              ),
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              itemCount: widget.allChapters.length,
+              itemBuilder: (context, index) {
+                final chapter = widget.allChapters[index];
+                final isCurrentChapter = chapter.id == _currentChapter.id;
+                return ListTile(
+                  leading: Text(
+                    '(${chapter.chapterNumber})',
+                    style: TextStyle(
+                      color: isCurrentChapter
+                          ? _accentColor
+                          : (isDarkMode ? _darkTextSecondary : Colors.grey),
+                    ),
+                  ),
+                  title: Text(
+                    chapter.title,
+                    style: TextStyle(
+                      color: isCurrentChapter
+                          ? _accentColor
+                          : (isDarkMode ? _darkText : Colors.black),
+                      fontWeight: isCurrentChapter
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                    ),
+                  ),
+                  trailing: isCurrentChapter
+                      ? const Icon(Icons.play_arrow, color: _accentColor)
+                      : null,
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    setState(() {
+                      _currentChapter = chapter;
+                      _scrollController.jumpTo(0);
+                      _refreshData();
+                    });
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showFontSizeDialog(BuildContext context) {
+    final isDarkMode = themeService.isDarkMode;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDarkMode ? _darkCard : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Font Size',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: isDarkMode ? _darkText : Colors.black,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                IconButton(
+                  onPressed: () {
+                    if (_fontSize > 12) {
+                      setState(() => _fontSize -= 2);
+                    }
+                  },
+                  icon: Icon(
+                    Icons.remove_circle_outline,
+                    color: isDarkMode ? _darkText : Colors.black,
+                    size: 32,
+                  ),
+                ),
+                const SizedBox(width: 24),
+                Text(
+                  '${_fontSize.toInt()}',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: isDarkMode ? _darkText : Colors.black,
+                  ),
+                ),
+                const SizedBox(width: 24),
+                IconButton(
+                  onPressed: () {
+                    if (_fontSize < 32) {
+                      setState(() => _fontSize += 2);
+                    }
+                  },
+                  icon: Icon(
+                    Icons.add_circle_outline,
+                    color: isDarkMode ? _darkText : Colors.black,
+                    size: 32,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Sample Text',
+              style: TextStyle(
+                fontSize: _fontSize,
+                color: isDarkMode ? _darkText : Colors.black,
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showInlineCommentDialog(BuildContext context, Offset position) {
+    final isDarkMode = themeService.isDarkMode;
+    final commentController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDarkMode ? _darkCard : Colors.white,
+        title: Text(
+          'Add Comment',
+          style: TextStyle(color: isDarkMode ? _darkText : Colors.black),
+        ),
+        content: TextField(
+          controller: commentController,
+          decoration: InputDecoration(
+            hintText: 'Write your comment...',
+            hintStyle: TextStyle(
+              color: isDarkMode ? _darkTextSecondary : Colors.grey,
+            ),
+          ),
+          style: TextStyle(color: isDarkMode ? _darkText : Colors.black),
+          maxLines: 3,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                color: isDarkMode ? _darkTextSecondary : Colors.grey,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (commentController.text.isNotEmpty) {
+                final nickname = await AuthService().getUserNickname(
+                  currentUser!.uid,
+                );
+                await widget.firestoreService.addComment(
+                  widget.book.id,
+                  currentUser!.uid,
+                  commentController.text,
+                  chapterId: _currentChapter.id,
+                  userNickname: nickname,
+                );
+                Navigator.pop(ctx);
+                setState(() => _refreshData());
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text('Comment added')));
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: _accentColor),
+            child: const Text('Post'),
+          ),
+        ],
       ),
     );
   }
@@ -2019,12 +2721,15 @@ class _ChapterReadScreenState extends State<_ChapterReadScreen> {
             ),
             Padding(
               padding: const EdgeInsets.all(16),
-              child: Text(
-                'Comments',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: isDarkMode ? _darkText : Colors.black,
+              child: FutureBuilder<List<CommentModel>>(
+                future: comments,
+                builder: (context, snapshot) => Text(
+                  '${snapshot.data?.length ?? 0} Comments',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: isDarkMode ? _darkText : Colors.black,
+                  ),
                 ),
               ),
             ),
@@ -2056,35 +2761,12 @@ class _ChapterReadScreenState extends State<_ChapterReadScreen> {
                     itemCount: commentList.length,
                     itemBuilder: (context, index) {
                       final comment = commentList[index];
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: isDarkMode ? _darkBg : Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              comment.userId,
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                                color: isDarkMode
-                                    ? _darkTextSecondary
-                                    : Colors.grey.shade700,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              comment.message,
-                              style: TextStyle(
-                                color: isDarkMode ? _darkText : Colors.black,
-                              ),
-                            ),
-                          ],
-                        ),
+                      return _CommentItem(
+                        comment: comment,
+                        firestoreService: widget.firestoreService,
+                        bookId: widget.book.id,
+                        chapterId: _currentChapter.id,
+                        onReply: () => setState(() => _refreshData()),
                       );
                     },
                   );
@@ -2100,11 +2782,21 @@ class _ChapterReadScreenState extends State<_ChapterReadScreen> {
               ),
               child: Row(
                 children: [
+                  CircleAvatar(
+                    radius: 16,
+                    backgroundColor: _accentColor.withOpacity(0.2),
+                    child: const Icon(
+                      Icons.person,
+                      size: 16,
+                      color: _accentColor,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: TextField(
                       controller: commentController,
                       decoration: InputDecoration(
-                        hintText: 'Write a comment...',
+                        hintText: 'Post a comment...',
                         hintStyle: TextStyle(
                           color: isDarkMode ? _darkTextSecondary : Colors.grey,
                         ),
@@ -2124,19 +2816,21 @@ class _ChapterReadScreenState extends State<_ChapterReadScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
                   IconButton(
                     onPressed: () async {
                       if (commentController.text.isNotEmpty) {
+                        final nickname = await AuthService().getUserNickname(
+                          currentUser!.uid,
+                        );
                         await widget.firestoreService.addComment(
-                          _currentChapter.bookId,
+                          widget.book.id,
                           currentUser!.uid,
                           commentController.text,
                           chapterId: _currentChapter.id,
+                          userNickname: nickname,
                         );
                         commentController.clear();
                         setState(() => _refreshData());
-                        Navigator.pop(ctx);
                       }
                     },
                     icon: const Icon(Icons.send, color: _accentColor),
@@ -2151,91 +2845,463 @@ class _ChapterReadScreenState extends State<_ChapterReadScreen> {
   }
 }
 
-// ==================== SEARCH DELEGATE ====================
-class _BookSearchDelegate extends SearchDelegate<BookModel?> {
-  final FirestoreService firestoreService;
+class _BottomBarItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final Color? color;
 
-  _BookSearchDelegate(this.firestoreService);
+  const _BottomBarItem({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.color,
+  });
 
   @override
-  List<Widget> buildActions(BuildContext context) {
-    return [
-      IconButton(icon: const Icon(Icons.clear), onPressed: () => query = ''),
-    ];
+  Widget build(BuildContext context) {
+    final isDarkMode = themeService.isDarkMode;
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            color: color ?? (isDarkMode ? _darkTextSecondary : Colors.grey),
+            size: 22,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              color: color ?? (isDarkMode ? _darkTextSecondary : Colors.grey),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CommentItem extends StatefulWidget {
+  final CommentModel comment;
+  final FirestoreService firestoreService;
+  final String bookId;
+  final String chapterId;
+  final VoidCallback onReply;
+
+  const _CommentItem({
+    required this.comment,
+    required this.firestoreService,
+    required this.bookId,
+    required this.chapterId,
+    required this.onReply,
+  });
+
+  @override
+  State<_CommentItem> createState() => _CommentItemState();
+}
+
+class _CommentItemState extends State<_CommentItem> {
+  bool _showReplies = false;
+  late Future<List<CommentModel>> replies;
+
+  @override
+  void initState() {
+    super.initState();
+    replies = widget.firestoreService.getCommentReplies(widget.comment.id);
   }
 
   @override
-  Widget buildLeading(BuildContext context) {
-    return IconButton(
-      icon: const Icon(Icons.arrow_back),
-      onPressed: () => close(context, null),
+  Widget build(BuildContext context) {
+    final isDarkMode = themeService.isDarkMode;
+    final dateFormat = DateFormat('MMM d, yyyy \'at\' h:mm a');
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Quoted text if inline comment
+          if (widget.comment.selectedText != null &&
+              widget.comment.selectedText!.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.all(8),
+              margin: const EdgeInsets.only(bottom: 8),
+              decoration: BoxDecoration(
+                color: isDarkMode ? _darkBg : Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(8),
+                border: Border(left: BorderSide(color: _accentColor, width: 3)),
+              ),
+              child: Text(
+                widget.comment.selectedText!,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                  color: isDarkMode ? _darkTextSecondary : Colors.grey.shade700,
+                ),
+              ),
+            ),
+
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                radius: 16,
+                backgroundColor: _accentColor.withOpacity(0.2),
+                child: Text(
+                  widget.comment.userNickname.isNotEmpty
+                      ? widget.comment.userNickname[0].toUpperCase()
+                      : 'U',
+                  style: const TextStyle(color: _accentColor, fontSize: 12),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          widget.comment.userNickname.isNotEmpty
+                              ? widget.comment.userNickname
+                              : 'Anonymous',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                            color: isDarkMode ? _darkText : Colors.black,
+                          ),
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          icon: const Icon(Icons.reply, size: 18),
+                          color: isDarkMode ? _darkTextSecondary : Colors.grey,
+                          onPressed: () => _showReplyDialog(context),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      widget.comment.message,
+                      style: TextStyle(
+                        color: isDarkMode ? _darkText : Colors.black,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      dateFormat.format(widget.comment.createdAt),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isDarkMode ? _darkTextSecondary : Colors.grey,
+                      ),
+                    ),
+
+                    // Replies
+                    FutureBuilder<List<CommentModel>>(
+                      future: replies,
+                      builder: (context, snapshot) {
+                        final replyList = snapshot.data ?? [];
+                        if (replyList.isEmpty) return const SizedBox();
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            TextButton(
+                              onPressed: () =>
+                                  setState(() => _showReplies = !_showReplies),
+                              child: Text(
+                                _showReplies
+                                    ? 'Hide replies'
+                                    : 'View ${replyList.length} replies',
+                                style: const TextStyle(
+                                  color: _accentColor,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                            if (_showReplies)
+                              ...replyList.map(
+                                (reply) => Padding(
+                                  padding: const EdgeInsets.only(
+                                    left: 16,
+                                    top: 8,
+                                  ),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      CircleAvatar(
+                                        radius: 12,
+                                        backgroundColor: _accentColor
+                                            .withOpacity(0.2),
+                                        child: Text(
+                                          reply.userNickname.isNotEmpty
+                                              ? reply.userNickname[0]
+                                                    .toUpperCase()
+                                              : 'U',
+                                          style: const TextStyle(
+                                            color: _accentColor,
+                                            fontSize: 10,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              reply.userNickname.isNotEmpty
+                                                  ? reply.userNickname
+                                                  : 'Anonymous',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 12,
+                                                color: isDarkMode
+                                                    ? _darkText
+                                                    : Colors.black,
+                                              ),
+                                            ),
+                                            Text(
+                                              reply.message,
+                                              style: TextStyle(
+                                                color: isDarkMode
+                                                    ? _darkText
+                                                    : Colors.black,
+                                                fontSize: 13,
+                                              ),
+                                            ),
+                                            Text(
+                                              dateFormat.format(
+                                                reply.createdAt,
+                                              ),
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                color: isDarkMode
+                                                    ? _darkTextSecondary
+                                                    : Colors.grey,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                          ],
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
-  @override
-  Widget buildResults(BuildContext context) {
-    return _buildSearchResults();
-  }
+  void _showReplyDialog(BuildContext context) {
+    final isDarkMode = themeService.isDarkMode;
+    final replyController = TextEditingController();
+    final currentUser = FirebaseAuth.instance.currentUser;
 
-  @override
-  Widget buildSuggestions(BuildContext context) {
-    return _buildSearchResults();
-  }
-
-  Widget _buildSearchResults() {
-    if (query.isEmpty) {
-      return const Center(child: Text('Search for books...'));
-    }
-
-    return FutureBuilder<List<BookModel>>(
-      future: firestoreService.getAllBooks(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(color: _accentColor),
-          );
-        }
-
-        final books = (snapshot.data ?? []).where((book) {
-          return book.title.toLowerCase().contains(query.toLowerCase()) ||
-              book.description.toLowerCase().contains(query.toLowerCase()) ||
-              book.tags.any(
-                (tag) => tag.toLowerCase().contains(query.toLowerCase()),
-              );
-        }).toList();
-
-        if (books.isEmpty) {
-          return const Center(child: Text('No books found'));
-        }
-
-        return ListView.builder(
-          itemCount: books.length,
-          itemBuilder: (context, index) {
-            final book = books[index];
-            return ListTile(
-              leading: SizedBox(
-                width: 50,
-                height: 70,
-                child: _buildBookCover(book.coverImageUrl, fit: BoxFit.cover),
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDarkMode ? _darkCard : Colors.white,
+        title: Text(
+          'Reply to ${widget.comment.userNickname}',
+          style: TextStyle(color: isDarkMode ? _darkText : Colors.black),
+        ),
+        content: TextField(
+          controller: replyController,
+          decoration: InputDecoration(
+            hintText: 'Write your reply...',
+            hintStyle: TextStyle(
+              color: isDarkMode ? _darkTextSecondary : Colors.grey,
+            ),
+          ),
+          style: TextStyle(color: isDarkMode ? _darkText : Colors.black),
+          maxLines: 3,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                color: isDarkMode ? _darkTextSecondary : Colors.grey,
               ),
-              title: Text(book.title),
-              subtitle: Text(book.category),
-              onTap: () {
-                close(context, book);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => _BookDetailScreen(
-                      book: book,
-                      firestoreService: firestoreService,
-                    ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (replyController.text.isNotEmpty && currentUser != null) {
+                final nickname = await AuthService().getUserNickname(
+                  currentUser.uid,
+                );
+                await widget.firestoreService.addComment(
+                  widget.bookId,
+                  currentUser.uid,
+                  replyController.text,
+                  chapterId: widget.chapterId,
+                  userNickname: nickname,
+                  parentCommentId: widget.comment.id,
+                );
+                Navigator.pop(ctx);
+                widget.onReply();
+                setState(
+                  () => replies = widget.firestoreService.getCommentReplies(
+                    widget.comment.id,
                   ),
                 );
-              },
-            );
-          },
-        );
-      },
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: _accentColor),
+            child: const Text('Reply'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==================== WRITER PROFILE SCREEN ====================
+class _WriterProfileScreen extends StatelessWidget {
+  final UserModel writer;
+  final FirestoreService firestoreService;
+
+  const _WriterProfileScreen({
+    required this.writer,
+    required this.firestoreService,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDarkMode = themeService.isDarkMode;
+
+    return Theme(
+      data: isDarkMode
+          ? ThemeData.dark().copyWith(scaffoldBackgroundColor: _darkBg)
+          : ThemeData.light().copyWith(
+              scaffoldBackgroundColor: Colors.grey.shade100,
+            ),
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(
+            writer.displayName,
+            style: TextStyle(color: isDarkMode ? _darkText : Colors.black),
+          ),
+          backgroundColor: isDarkMode ? _darkBg : Colors.white,
+          iconTheme: IconThemeData(
+            color: isDarkMode ? _darkText : Colors.black,
+          ),
+        ),
+        body: Column(
+          children: [
+            // Profile header
+            Container(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                children: [
+                  CircleAvatar(
+                    radius: 50,
+                    backgroundColor: _accentColor.withOpacity(0.2),
+                    child: Text(
+                      writer.displayName[0].toUpperCase(),
+                      style: const TextStyle(
+                        fontSize: 40,
+                        color: _accentColor,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    writer.displayName,
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: isDarkMode ? _darkText : Colors.black,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Writer',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: isDarkMode ? _darkTextSecondary : Colors.grey,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Published books section
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  Text(
+                    'Published Stories',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: isDarkMode ? _darkText : Colors.black,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Books list
+            Expanded(
+              child: FutureBuilder<List<BookModel>>(
+                future: firestoreService.getPublishedBooksByWriter(writer.uid),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                      child: CircularProgressIndicator(color: _accentColor),
+                    );
+                  }
+
+                  final books = snapshot.data ?? [];
+                  if (books.isEmpty) {
+                    return Center(
+                      child: Text(
+                        'No published stories yet',
+                        style: TextStyle(
+                          color: isDarkMode ? _darkTextSecondary : Colors.grey,
+                        ),
+                      ),
+                    );
+                  }
+
+                  return ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: books.length,
+                    itemBuilder: (context, index) {
+                      final book = books[index];
+                      return _BookListItem(
+                        book: book,
+                        firestoreService: firestoreService,
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

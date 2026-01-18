@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class BookModel {
   final String id;
   final String writerId;
+  final String writerNickname;
   final String title;
   final String coverImageUrl;
   final String description;
@@ -11,12 +12,14 @@ class BookModel {
   final bool isMature;
   final bool isCompleted;
   final bool isDraft;
+  final int readCount;
   final DateTime createdAt;
   final DateTime updatedAt;
 
   BookModel({
     required this.id,
     required this.writerId,
+    this.writerNickname = '',
     required this.title,
     required this.coverImageUrl,
     this.description = '',
@@ -25,6 +28,7 @@ class BookModel {
     this.isMature = false,
     this.isCompleted = false,
     this.isDraft = false,
+    this.readCount = 0,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -32,6 +36,7 @@ class BookModel {
   Map<String, dynamic> toMap() => {
     'id': id,
     'writerId': writerId,
+    'writerNickname': writerNickname,
     'title': title,
     'coverImageUrl': coverImageUrl,
     'description': description,
@@ -40,6 +45,7 @@ class BookModel {
     'isMature': isMature,
     'isCompleted': isCompleted,
     'isDraft': isDraft,
+    'readCount': readCount,
     'createdAt': createdAt,
     'updatedAt': updatedAt,
   };
@@ -47,6 +53,7 @@ class BookModel {
   factory BookModel.fromMap(Map<String, dynamic> data, String id) => BookModel(
     id: id,
     writerId: data['writerId'] ?? '',
+    writerNickname: data['writerNickname'] ?? '',
     title: data['title'] ?? '',
     coverImageUrl: data['coverImageUrl'] ?? '',
     description: data['description'] ?? '',
@@ -55,6 +62,7 @@ class BookModel {
     isMature: data['isMature'] ?? false,
     isCompleted: data['isCompleted'] ?? false,
     isDraft: data['isDraft'] ?? false,
+    readCount: data['readCount'] ?? 0,
     createdAt: data['createdAt'] != null
         ? (data['createdAt'] as Timestamp).toDate()
         : DateTime.now(),

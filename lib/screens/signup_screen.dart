@@ -10,6 +10,7 @@ class SignupScreen extends StatefulWidget {
 
 class _SignupScreenState extends State<SignupScreen> {
   final TextEditingController emailController = TextEditingController();
+  final TextEditingController nicknameController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
   final TextEditingController confirmPasswordController =
       TextEditingController();
@@ -21,6 +22,13 @@ class _SignupScreenState extends State<SignupScreen> {
 
   void signup() async {
     // Validation
+    if (nicknameController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please enter a nickname')));
+      return;
+    }
+
     if (emailController.text.trim().isEmpty) {
       ScaffoldMessenger.of(
         context,
@@ -62,6 +70,7 @@ class _SignupScreenState extends State<SignupScreen> {
         await authService.signUpReader(
           emailController.text.trim(),
           passwordController.text.trim(),
+          nickname: nicknameController.text.trim(),
         );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -76,6 +85,7 @@ class _SignupScreenState extends State<SignupScreen> {
           emailController.text.trim(),
           passwordController.text.trim(),
           writerCodeController.text.trim(),
+          nickname: nicknameController.text.trim(),
         );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -142,6 +152,18 @@ class _SignupScreenState extends State<SignupScreen> {
               ],
             ),
             const SizedBox(height: 24),
+            // Nickname field
+            TextField(
+              controller: nicknameController,
+              decoration: InputDecoration(
+                labelText: 'Nickname',
+                hintText: 'This will be displayed to others',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
             // Email field
             TextField(
               controller: emailController,
@@ -222,6 +244,7 @@ class _SignupScreenState extends State<SignupScreen> {
   @override
   void dispose() {
     emailController.dispose();
+    nicknameController.dispose();
     passwordController.dispose();
     confirmPasswordController.dispose();
     writerCodeController.dispose();

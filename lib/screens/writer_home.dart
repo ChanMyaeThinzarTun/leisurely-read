@@ -623,6 +623,9 @@ class _CreateStoryPageState extends State<CreateStoryPage> {
       final user = widget.authService.getCurrentUser();
       if (user == null) throw Exception('Not signed in');
 
+      // Get writer's nickname
+      final writerNickname = await widget.authService.getUserNickname(user.uid);
+
       String coverData = '';
       if (_coverImage != null) {
         final original = img.decodeImage(_coverImage!);
@@ -643,6 +646,7 @@ class _CreateStoryPageState extends State<CreateStoryPage> {
         isMature: false,
         isCompleted: false,
         isDraft: true,
+        writerNickname: writerNickname,
       );
 
       // Fetch the created book
