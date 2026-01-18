@@ -537,11 +537,6 @@ class _BookListItem extends StatelessWidget {
                 ],
               ),
             ),
-            IconButton(
-              icon: const Icon(Icons.more_vert),
-              color: isDarkMode ? _darkTextSecondary : Colors.grey,
-              onPressed: () {},
-            ),
           ],
         ),
       ),
@@ -1810,13 +1805,6 @@ class _BookDetailScreenState extends State<_BookDetailScreen> {
                     ],
                   ),
                 ),
-                actions: [
-                  IconButton(icon: const Icon(Icons.share), onPressed: () {}),
-                  IconButton(
-                    icon: const Icon(Icons.more_vert),
-                    onPressed: () {},
-                  ),
-                ],
               ),
 
               SliverToBoxAdapter(
@@ -2446,12 +2434,6 @@ class _ChapterReadScreenState extends State<_ChapterReadScreen> {
                       onTap: () => _showCommentsSheet(context),
                     );
                   },
-                ),
-                // Share
-                _BottomBarItem(
-                  icon: Icons.share_outlined,
-                  label: 'Share',
-                  onTap: () {},
                 ),
                 // Previous/Next
                 if (hasPrevious)
