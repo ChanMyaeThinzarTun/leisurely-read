@@ -1829,7 +1829,10 @@ class _BookDetailScreenState extends State<_BookDetailScreen> {
   void initState() {
     super.initState();
     _readCount = widget.book.readCount;
-    _writerNickname = widget.book.writerNickname; // Start with cached value
+    // Start with loading indicator, will be replaced by real value
+    _writerNickname = widget.book.writerNickname.isNotEmpty
+        ? widget.book.writerNickname
+        : 'Loading...';
     chapters = widget.firestoreService.getChaptersByBook(widget.book.id);
     totalVotes = widget.firestoreService.getTotalVotesForBook(widget.book.id);
     chapterCount = widget.firestoreService.getChapterCount(widget.book.id);
@@ -1853,7 +1856,7 @@ class _BookDetailScreenState extends State<_BookDetailScreen> {
     );
     if (user != null && mounted) {
       setState(() {
-        _writerNickname = user.nickname.isNotEmpty ? user.nickname : '';
+        _writerNickname = user.displayName;
       });
     }
   }

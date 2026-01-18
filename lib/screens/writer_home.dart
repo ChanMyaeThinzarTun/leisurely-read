@@ -2386,8 +2386,12 @@ class _ProfilePageState extends State<ProfilePage> {
     }
     setState(() => _savingNickname = true);
     try {
-      await user?.updateDisplayName(_nicknameController.text.trim());
+      final newNickname = _nicknameController.text.trim();
+      // Update Firebase Auth display name
+      await user?.updateDisplayName(newNickname);
       await user?.reload();
+      // Update Firestore users collection AND all books by this writer
+      await widget.authService.updateNickname(newNickname);
       setState(() {
         _editingNickname = false;
         _savingNickname = false;
@@ -2898,7 +2902,9 @@ class _WriterNotificationsPageState extends State<_WriterNotificationsPage> {
     final user = await widget.firestoreService.getUserById(widget.userId);
     if (mounted) {
       setState(() {
-        _writerNickname = user?.nickname ?? 'Writer';
+        _writerNickname = (user?.nickname != null && user!.nickname.isNotEmpty)
+            ? user.nickname
+            : 'Writer';
       });
     }
   }

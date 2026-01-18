@@ -89,6 +89,16 @@ class AuthService {
       await _firestore.collection('users').doc(user.uid).update({
         'nickname': nickname,
       });
+
+      // Also update writerNickname in all books written by this user
+      final booksSnapshot = await _firestore
+          .collection('books')
+          .where('writerId', isEqualTo: user.uid)
+          .get();
+
+      for (var doc in booksSnapshot.docs) {
+        await doc.reference.update({'writerNickname': nickname});
+      }
     }
   }
 
