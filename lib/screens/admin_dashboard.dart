@@ -208,16 +208,13 @@ class _UsersTabState extends State<_UsersTab> {
                 DropdownMenuItem(value: 30, child: Text('30 days')),
                 DropdownMenuItem(value: 365, child: Text('1 year')),
               ],
-              onChanged: (value) {
+              onChanged: (value) async {
                 if (value != null) {
                   final bannedUntil = DateTime.now().add(Duration(days: value));
-                  widget.firestoreService.banUser(user.uid, bannedUntil).then((
-                    _,
-                  ) {
-                    Navigator.pop(context);
-                    setState(() {
-                      users = widget.firestoreService.getAllUsers();
-                    });
+                  await widget.firestoreService.banUser(user.uid, bannedUntil);
+                  Navigator.pop(context);
+                  setState(() {
+                    users = widget.firestoreService.getAllUsers();
                   });
                 }
               },

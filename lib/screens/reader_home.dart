@@ -161,7 +161,7 @@ class _ReaderHomeState extends State<ReaderHome> {
                     3,
                     Icons.notifications_outlined,
                     Icons.notifications,
-                    'Updates',
+                    'Notifications',
                   ),
                   _buildNavItem(
                     4,
@@ -227,7 +227,7 @@ class _BrowseTab extends StatefulWidget {
 }
 
 class _BrowseTabState extends State<_BrowseTab> {
-  late Future<List<BookModel>> books;
+  Future<List<BookModel>>? books;
   String _selectedCategory = 'All';
   bool _safeSearch = true;
 
@@ -248,6 +248,8 @@ class _BrowseTabState extends State<_BrowseTab> {
   @override
   void initState() {
     super.initState();
+    // Initialize with default safeSearch=true immediately
+    books = widget.firestoreService.getAllBooks(safeSearch: true);
     _loadSafeSearch();
   }
 
@@ -1135,7 +1137,7 @@ class _NotificationsTabState extends State<_NotificationsTab> {
           Padding(
             padding: const EdgeInsets.all(16),
             child: Text(
-              'Updates',
+              'Notifications',
               style: TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
@@ -1168,7 +1170,7 @@ class _NotificationsTabState extends State<_NotificationsTab> {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          'No updates yet',
+                          'No notifications yet',
                           style: TextStyle(
                             fontSize: 18,
                             color: isDarkMode
@@ -1186,14 +1188,33 @@ class _NotificationsTabState extends State<_NotificationsTab> {
                   itemCount: notificationList.length,
                   itemBuilder: (context, index) {
                     final notif = notificationList[index];
+
+                    // Choose icon based on notification type
+                    IconData notifIcon;
+                    switch (notif.type) {
+                      case 'vote':
+                        notifIcon = Icons.star;
+                        break;
+                      case 'comment':
+                        notifIcon = Icons.comment;
+                        break;
+                      case 'reply':
+                        notifIcon = Icons.reply;
+                        break;
+                      case 'new_chapter':
+                        notifIcon = Icons.menu_book;
+                        break;
+                      case 'ban':
+                        notifIcon = Icons.block;
+                        break;
+                      default:
+                        notifIcon = Icons.notifications;
+                    }
+
                     return ListTile(
                       leading: CircleAvatar(
                         backgroundColor: _accentColor.withOpacity(0.2),
-                        child: const Icon(
-                          Icons.notifications,
-                          color: _accentColor,
-                          size: 20,
-                        ),
+                        child: Icon(notifIcon, color: _accentColor, size: 20),
                       ),
                       title: Text(
                         notif.title,
@@ -1678,11 +1699,13 @@ class _BookDetailScreenState extends State<_BookDetailScreen> {
   bool _askedToAddLibrary = false;
   final currentUser = FirebaseAuth.instance.currentUser;
   late int _readCount;
+  String _writerNickname = '';
 
   @override
   void initState() {
     super.initState();
     _readCount = widget.book.readCount;
+    _writerNickname = widget.book.writerNickname; // Start with cached value
     chapters = widget.firestoreService.getChaptersByBook(widget.book.id);
     totalVotes = widget.firestoreService.getTotalVotesForBook(widget.book.id);
     chapterCount = widget.firestoreService.getChapterCount(widget.book.id);
@@ -1690,11 +1713,25 @@ class _BookDetailScreenState extends State<_BookDetailScreen> {
     _checkLibrary();
     // Increment read count
     _incrementReadCount();
+    // Fetch fresh writer nickname
+    _loadWriterNickname();
   }
 
   Future<void> _incrementReadCount() async {
     await widget.firestoreService.incrementReadCount(widget.book.id);
     setState(() => _readCount = _readCount + 1);
+  }
+
+  Future<void> _loadWriterNickname() async {
+    // Fetch fresh writer nickname from user document
+    final user = await widget.firestoreService.getUserById(
+      widget.book.writerId,
+    );
+    if (user != null && mounted) {
+      setState(() {
+        _writerNickname = user.nickname.isNotEmpty ? user.nickname : '';
+      });
+    }
   }
 
   Future<void> _checkLibrary() async {
@@ -1824,8 +1861,8 @@ class _BookDetailScreenState extends State<_BookDetailScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        widget.book.writerNickname.isNotEmpty
-                            ? widget.book.writerNickname
+                        _writerNickname.isNotEmpty
+                            ? _writerNickname
                             : 'Unknown Writer',
                         style: TextStyle(
                           fontSize: 14,
@@ -2271,39 +2308,89 @@ class _ChapterReadScreenState extends State<_ChapterReadScreen> {
       text = content;
     }
 
-    final List<TextSpan> spans = [];
-    final RegExp pattern = RegExp(r'\*\*(.+?)\*\*|_(.+?)_|<u>(.+?)</u>');
     final textColor = isDarkMode ? _darkText : Colors.black;
 
+    // Pattern for combined formats: bold+italic, underline+bold, etc.
+    // Order matters: check combined formats first, then single formats
+    final RegExp pattern = RegExp(
+      r'_\*\*(.+?)\*\*_|' // _**bold italic**_
+      r'\*\*_(.+?)_\*\*|' // **_bold italic_**
+      r'<u>\*\*(.+?)\*\*</u>|' // <u>**underline bold**</u>
+      r'\*\*<u>(.+?)</u>\*\*|' // **<u>bold underline</u>**
+      r'<u>_(.+?)_</u>|' // <u>_underline italic_</u>
+      r'_<u>(.+?)</u>_|' // _<u>italic underline</u>_
+      r'\*\*(.+?)\*\*|' // **bold**
+      r'_(.+?)_|' // _italic_
+      r'<u>(.+?)</u>', // <u>underline</u>
+    );
+
+    final List<TextSpan> spans = [];
     int lastEnd = 0;
+
     for (final match in pattern.allMatches(text)) {
       // Add plain text before match
       if (match.start > lastEnd) {
         spans.add(TextSpan(text: text.substring(lastEnd, match.start)));
       }
 
-      // Determine formatting type and add styled span
-      if (match.group(1) != null) {
-        // Bold **text**
+      // Determine which group matched and apply appropriate style
+      if (match.group(1) != null || match.group(2) != null) {
+        // Bold + Italic
         spans.add(
           TextSpan(
-            text: match.group(1),
+            text: match.group(1) ?? match.group(2),
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontStyle: FontStyle.italic,
+              color: textColor,
+            ),
+          ),
+        );
+      } else if (match.group(3) != null || match.group(4) != null) {
+        // Underline + Bold
+        spans.add(
+          TextSpan(
+            text: match.group(3) ?? match.group(4),
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              decoration: TextDecoration.underline,
+              color: textColor,
+            ),
+          ),
+        );
+      } else if (match.group(5) != null || match.group(6) != null) {
+        // Underline + Italic
+        spans.add(
+          TextSpan(
+            text: match.group(5) ?? match.group(6),
+            style: TextStyle(
+              fontStyle: FontStyle.italic,
+              decoration: TextDecoration.underline,
+              color: textColor,
+            ),
+          ),
+        );
+      } else if (match.group(7) != null) {
+        // Bold only
+        spans.add(
+          TextSpan(
+            text: match.group(7),
             style: TextStyle(fontWeight: FontWeight.bold, color: textColor),
           ),
         );
-      } else if (match.group(2) != null) {
-        // Italic _text_
+      } else if (match.group(8) != null) {
+        // Italic only
         spans.add(
           TextSpan(
-            text: match.group(2),
+            text: match.group(8),
             style: TextStyle(fontStyle: FontStyle.italic, color: textColor),
           ),
         );
-      } else if (match.group(3) != null) {
-        // Underline <u>text</u>
+      } else if (match.group(9) != null) {
+        // Underline only
         spans.add(
           TextSpan(
-            text: match.group(3),
+            text: match.group(9),
             style: TextStyle(
               decoration: TextDecoration.underline,
               color: textColor,
@@ -2415,9 +2502,13 @@ class _ChapterReadScreenState extends State<_ChapterReadScreen> {
                           );
                           return;
                         }
+                        final nickname = await AuthService().getUserNickname(
+                          currentUser!.uid,
+                        );
                         await widget.firestoreService.addVote(
                           _currentChapter.id,
                           currentUser!.uid,
+                          voterNickname: nickname,
                         );
                         setState(() => _refreshData());
                       },

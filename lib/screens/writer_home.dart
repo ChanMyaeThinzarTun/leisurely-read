@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/book_model.dart';
+import '../models/notification_model.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../services/theme_service.dart';
@@ -172,41 +173,112 @@ class _WriterHomeState extends State<WriterHome> {
                                 color: isDarkMode ? _darkText : Colors.black,
                               ),
                             ),
-                            GestureDetector(
-                              onTap: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      ProfilePage(authService: authService),
+                            Row(
+                              children: [
+                                // Notifications button
+                                GestureDetector(
+                                  onTap: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => _WriterNotificationsPage(
+                                        firestoreService: firestoreService,
+                                        userId: user?.uid ?? '',
+                                      ),
+                                    ),
+                                  ),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(8),
+                                    child: FutureBuilder<int>(
+                                      future: firestoreService
+                                          .getUnreadNotificationCount(
+                                            user?.uid ?? '',
+                                          ),
+                                      builder: (context, snapshot) {
+                                        final count = snapshot.data ?? 0;
+                                        return Stack(
+                                          children: [
+                                            Icon(
+                                              Icons.notifications_outlined,
+                                              color: isDarkMode
+                                                  ? _darkTextSecondary
+                                                  : Colors.grey.shade600,
+                                              size: 24,
+                                            ),
+                                            if (count > 0)
+                                              Positioned(
+                                                right: 0,
+                                                top: 0,
+                                                child: Container(
+                                                  padding: const EdgeInsets.all(
+                                                    4,
+                                                  ),
+                                                  decoration:
+                                                      const BoxDecoration(
+                                                        color: _accentColor,
+                                                        shape: BoxShape.circle,
+                                                      ),
+                                                  constraints:
+                                                      const BoxConstraints(
+                                                        minWidth: 16,
+                                                        minHeight: 16,
+                                                      ),
+                                                  child: Text(
+                                                    count > 9 ? '9+' : '$count',
+                                                    style: const TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 10,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                    ),
+                                                    textAlign: TextAlign.center,
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
+                                        );
+                                      },
+                                    ),
+                                  ),
                                 ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Text(
-                                    '@${user?.displayName ?? user?.email?.split('@').first ?? 'User'}',
-                                    style: TextStyle(
-                                      color: isDarkMode
-                                          ? _darkTextSecondary
-                                          : Colors.grey.shade600,
-                                      fontSize: 14,
+                                const SizedBox(width: 8),
+                                // Profile button
+                                GestureDetector(
+                                  onTap: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          ProfilePage(authService: authService),
                                     ),
                                   ),
-                                  const SizedBox(width: 8),
-                                  CircleAvatar(
-                                    radius: 16,
-                                    backgroundColor: isDarkMode
-                                        ? Colors.grey.shade700
-                                        : Colors.grey.shade300,
-                                    child: Icon(
-                                      Icons.person,
-                                      size: 20,
-                                      color: isDarkMode
-                                          ? Colors.white
-                                          : Colors.grey.shade600,
-                                    ),
+                                  child: Row(
+                                    children: [
+                                      Text(
+                                        '@${user?.displayName ?? user?.email?.split('@').first ?? 'User'}',
+                                        style: TextStyle(
+                                          color: isDarkMode
+                                              ? _darkTextSecondary
+                                              : Colors.grey.shade600,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      CircleAvatar(
+                                        radius: 16,
+                                        backgroundColor: isDarkMode
+                                            ? Colors.grey.shade700
+                                            : Colors.grey.shade300,
+                                        child: Icon(
+                                          Icons.person,
+                                          size: 20,
+                                          color: isDarkMode
+                                              ? Colors.white
+                                              : Colors.grey.shade600,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -2703,5 +2775,250 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
       ),
     );
+  }
+}
+
+// ==================== WRITER NOTIFICATIONS PAGE ====================
+class _WriterNotificationsPage extends StatefulWidget {
+  final FirestoreService firestoreService;
+  final String userId;
+
+  const _WriterNotificationsPage({
+    required this.firestoreService,
+    required this.userId,
+  });
+
+  @override
+  State<_WriterNotificationsPage> createState() =>
+      _WriterNotificationsPageState();
+}
+
+class _WriterNotificationsPageState extends State<_WriterNotificationsPage> {
+  late Future<List<NotificationModel>> _notifications;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNotifications();
+  }
+
+  void _loadNotifications() {
+    _notifications = widget.firestoreService.getUserNotifications(
+      widget.userId,
+    );
+  }
+
+  IconData _getNotificationIcon(String type) {
+    switch (type) {
+      case 'vote':
+        return Icons.star;
+      case 'comment':
+        return Icons.comment;
+      case 'reply':
+        return Icons.reply;
+      case 'new_chapter':
+        return Icons.menu_book;
+      case 'ban':
+        return Icons.block;
+      default:
+        return Icons.notifications;
+    }
+  }
+
+  Color _getNotificationColor(String type) {
+    switch (type) {
+      case 'ban':
+        return Colors.red;
+      default:
+        return _accentColor;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDarkMode = themeService.isDarkMode;
+
+    return Theme(
+      data: isDarkMode
+          ? ThemeData.dark().copyWith(scaffoldBackgroundColor: _darkBg)
+          : ThemeData.light().copyWith(
+              scaffoldBackgroundColor: Colors.grey.shade100,
+            ),
+      child: Scaffold(
+        appBar: AppBar(
+          backgroundColor: isDarkMode ? _darkBg : Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: Icon(
+              Icons.arrow_back,
+              color: isDarkMode ? _darkText : Colors.black,
+            ),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: Text(
+            'Notifications',
+            style: TextStyle(
+              color: isDarkMode ? _darkText : Colors.black,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        body: FutureBuilder<List<NotificationModel>>(
+          future: _notifications,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(
+                child: CircularProgressIndicator(color: _accentColor),
+              );
+            }
+
+            final notifications = snapshot.data ?? [];
+
+            if (notifications.isEmpty) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.notifications_none,
+                      size: 80,
+                      color: Colors.grey.shade400,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No notifications yet',
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: isDarkMode
+                            ? _darkTextSecondary
+                            : Colors.grey.shade600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'You\'ll see votes and comments on your stories here',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: isDarkMode
+                            ? _darkTextSecondary
+                            : Colors.grey.shade500,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            return ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: notifications.length,
+              itemBuilder: (context, index) {
+                final notif = notifications[index];
+                final iconColor = _getNotificationColor(notif.type);
+
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: isDarkMode ? _darkCard : Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: notif.read
+                        ? null
+                        : Border.all(
+                            color: _accentColor.withOpacity(0.5),
+                            width: 1,
+                          ),
+                  ),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    leading: CircleAvatar(
+                      backgroundColor: iconColor.withOpacity(0.2),
+                      child: Icon(
+                        _getNotificationIcon(notif.type),
+                        color: iconColor,
+                        size: 20,
+                      ),
+                    ),
+                    title: Text(
+                      notif.title,
+                      style: TextStyle(
+                        fontWeight: notif.read
+                            ? FontWeight.normal
+                            : FontWeight.bold,
+                        color: isDarkMode ? _darkText : Colors.black,
+                        fontSize: 15,
+                      ),
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 4),
+                        Text(
+                          notif.message,
+                          style: TextStyle(
+                            color: isDarkMode
+                                ? _darkTextSecondary
+                                : Colors.grey.shade600,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _formatTimeAgo(notif.createdAt),
+                          style: TextStyle(
+                            color: isDarkMode
+                                ? _darkTextSecondary
+                                : Colors.grey.shade500,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                    trailing: notif.read
+                        ? null
+                        : Container(
+                            width: 10,
+                            height: 10,
+                            decoration: const BoxDecoration(
+                              color: _accentColor,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                    onTap: () async {
+                      if (!notif.read) {
+                        await widget.firestoreService.markNotificationAsRead(
+                          notif.id,
+                        );
+                        setState(() => _loadNotifications());
+                      }
+                    },
+                  ),
+                );
+              },
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  String _formatTimeAgo(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+
+    if (difference.inDays > 7) {
+      return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
+    } else if (difference.inDays > 0) {
+      return '${difference.inDays}d ago';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours}h ago';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes}m ago';
+    } else {
+      return 'Just now';
+    }
   }
 }

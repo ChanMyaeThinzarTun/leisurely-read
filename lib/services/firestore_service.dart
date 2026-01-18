@@ -243,7 +243,47 @@ class FirestoreService {
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
+
+    // If not a draft, notify all users who have this book in their library
+    if (!isDraft) {
+      final book = await getBookById(bookId);
+      if (book != null) {
+        final usersWithBook = await getUsersWithBookInLibrary(bookId);
+        final chapterTitle = title.isNotEmpty ? title : 'Part $chapterNumber';
+        for (var userId in usersWithBook) {
+          // Don't notify the writer themselves
+          if (userId != book.writerId) {
+            await sendNotification(
+              userId,
+              'New Chapter!',
+              '"${book.title}" has a new part: $chapterTitle',
+              'new_chapter',
+            );
+          }
+        }
+      }
+    }
+
     return docRef.id;
+  }
+
+  /// Get all user IDs who have a specific book in their library
+  Future<List<String>> getUsersWithBookInLibrary(String bookId) async {
+    final usersSnapshot = await _firestore.collection('users').get();
+    List<String> userIds = [];
+
+    for (var userDoc in usersSnapshot.docs) {
+      final libraryDoc = await _firestore
+          .collection('users')
+          .doc(userDoc.id)
+          .collection('library')
+          .doc(bookId)
+          .get();
+      if (libraryDoc.exists) {
+        userIds.add(userDoc.id);
+      }
+    }
+    return userIds;
   }
 
   Future<void> updateChapter(
@@ -306,7 +346,7 @@ class FirestoreService {
 
   Future<String> addComment(
     String bookId,
-    String userId,
+    String visibleUserId,
     String message, {
     String? chapterId,
     String userNickname = '',
@@ -318,7 +358,7 @@ class FirestoreService {
     final docRef = await _firestore.collection('comments').add({
       'bookId': bookId,
       'chapterId': chapterId,
-      'userId': userId,
+      'userId': visibleUserId,
       'userNickname': userNickname,
       'message': message,
       'selectedText': selectedText,
@@ -327,6 +367,39 @@ class FirestoreService {
       'parentCommentId': parentCommentId,
       'createdAt': FieldValue.serverTimestamp(),
     });
+
+    final nickname = userNickname.isNotEmpty ? userNickname : 'Someone';
+
+    // If this is a reply, notify the parent comment author
+    if (parentCommentId != null && parentCommentId.isNotEmpty) {
+      final parentDoc = await _firestore
+          .collection('comments')
+          .doc(parentCommentId)
+          .get();
+      if (parentDoc.exists) {
+        final parentUserId = parentDoc.data()?['userId'] as String?;
+        if (parentUserId != null && parentUserId != visibleUserId) {
+          await sendNotification(
+            parentUserId,
+            'New Reply!',
+            '$nickname replied to your comment',
+            'reply',
+          );
+        }
+      }
+    }
+
+    // Notify the book writer (if commenter is not the writer)
+    final book = await getBookById(bookId);
+    if (book != null && book.writerId != visibleUserId) {
+      await sendNotification(
+        book.writerId,
+        'New Comment!',
+        '$nickname commented on "${book.title}"',
+        'comment',
+      );
+    }
+
     return docRef.id;
   }
 
@@ -383,9 +456,13 @@ class FirestoreService {
 
   // ==================== VOTES ====================
 
-  Future<void> addVote(String chapterId, String userId) async {
+  Future<void> addVote(
+    String chapterId,
+    String visibleUserId, {
+    String voterNickname = '',
+  }) async {
     // Check if vote already exists - use document ID to avoid composite index
-    final docId = '${chapterId}_$userId';
+    final docId = '${chapterId}_$visibleUserId';
     final docRef = _firestore.collection('votes').doc(docId);
     final doc = await docRef.get();
 
@@ -396,10 +473,25 @@ class FirestoreService {
       // Add new vote
       await docRef.set({
         'chapterId': chapterId,
-        'userId': userId,
+        'userId': visibleUserId,
         'voteValue': 1,
         'createdAt': FieldValue.serverTimestamp(),
       });
+
+      // Send notification to the book writer
+      final chapter = await getChapterById(chapterId);
+      if (chapter != null) {
+        final book = await getBookById(chapter.bookId);
+        if (book != null && book.writerId != visibleUserId) {
+          final nickname = voterNickname.isNotEmpty ? voterNickname : 'Someone';
+          await sendNotification(
+            book.writerId,
+            'New Vote!',
+            '$nickname voted on "${book.title}"',
+            'vote',
+          );
+        }
+      }
     }
   }
 
@@ -452,11 +544,13 @@ class FirestoreService {
     final snapshot = await _firestore
         .collection('notifications')
         .where('userId', isEqualTo: userId)
-        .orderBy('createdAt', descending: true)
         .get();
-    return snapshot.docs
+    final notifications = snapshot.docs
         .map((doc) => NotificationModel.fromMap(doc.data(), doc.id))
         .toList();
+    // Sort in-app to avoid composite index requirement
+    notifications.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return notifications;
   }
 
   Future<void> markNotificationAsRead(String notificationId) async {
