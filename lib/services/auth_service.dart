@@ -134,22 +134,18 @@ class AuthService {
       email: email,
       password: password,
     );
-    await _ensureUserDocument(cred.user!);
+    // Don't call _ensureUserDocument - deleted accounts should stay deleted
     return cred.user;
   }
 
   // Get user data
   Future<Map<String, dynamic>> getUserData(String uid) async {
     final docRef = _firestore.collection('users').doc(uid);
-    var doc = await docRef.get();
+    final doc = await docRef.get();
 
-    // If missing, create a default profile based on current user email
+    // If document doesn't exist, return empty map (don't recreate deleted accounts)
     if (!doc.exists) {
-      final current = _auth.currentUser;
-      if (current != null) {
-        await _ensureUserDocument(current);
-        doc = await docRef.get();
-      }
+      return {};
     }
 
     return doc.data() ?? {};

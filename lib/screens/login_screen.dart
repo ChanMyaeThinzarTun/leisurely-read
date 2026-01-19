@@ -14,6 +14,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool loading = false;
   bool _obscurePassword = true;
+  bool _showAccountDeleted = false;
 
   void _showForgotPasswordDialog() {
     final resetEmailController = TextEditingController();
@@ -113,21 +114,24 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       if (user != null) {
         // Check if user document exists in Firestore
+        print('DEBUG: Login successful, checking user document...');
         final userData = await authService.getUserData(user.uid);
+        print('DEBUG: userData = $userData');
+        print('DEBUG: userData.isEmpty = ${userData.isEmpty}');
+        print('DEBUG: userData[role] = ${userData['role']}');
 
         // If userData is empty or null, account was deleted
         if (userData.isEmpty || userData['role'] == null) {
-          // Sign out and show error
-          await authService.logout();
+          print(
+            'DEBUG: Account detected as deleted, showing deleted screen...',
+          );
+          // Don't sign out yet - show deleted screen first
+          // Sign out will happen when user clicks back button
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'This account has been deleted by an administrator.',
-                ),
-                backgroundColor: Colors.red,
-              ),
-            );
+            setState(() {
+              _showAccountDeleted = true;
+              loading = false;
+            });
           }
           return;
         }
@@ -184,9 +188,14 @@ class _LoginScreenState extends State<LoginScreen> {
           errorMessage =
               'No internet connection. Please check your network and try again.';
         } else if (errorMessage.contains('permission-denied')) {
-          // Account was deleted from Firestore
-          await authService.logout();
-          errorMessage = 'This account has been deleted by an administrator.';
+          // Account was deleted from Firestore - don't sign out yet
+          if (mounted) {
+            setState(() {
+              _showAccountDeleted = true;
+              loading = false;
+            });
+          }
+          return;
         } else {
           // Generic fallback for unknown errors
           errorMessage = 'Login failed. Please check your email and password.';
@@ -205,6 +214,58 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Show account deleted screen
+    if (_showAccountDeleted) {
+      return Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () async {
+              await authService.logout();
+              if (mounted) {
+                setState(() {
+                  _showAccountDeleted = false;
+                });
+              }
+            },
+          ),
+          title: const Text('Account Status'),
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.person_off, size: 80, color: Colors.red),
+              const SizedBox(height: 24),
+              const Text(
+                'Account Deleted',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Your account has been removed\nby an administrator.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 48),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  await authService.logout();
+                  if (mounted) {
+                    setState(() {
+                      _showAccountDeleted = false;
+                    });
+                  }
+                },
+                icon: const Icon(Icons.arrow_back),
+                label: const Text('Back to Login'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(title: const Text('Login')),
       body: Padding(

@@ -40,7 +40,9 @@ class FirestoreService {
   }
 
   Future<void> deleteUser(String userId) async {
+    print('Deleting user document for UID: $userId');
     await _firestore.collection('users').doc(userId).delete();
+    print('User document deleted successfully');
   }
 
   Future<void> approveWriter(String writerId) async {

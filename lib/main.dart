@@ -96,12 +96,32 @@ class AuthWrapper extends StatelessWidget {
   }
 }
 
-class _RoleBasedHome extends StatelessWidget {
+class _RoleBasedHome extends StatefulWidget {
   const _RoleBasedHome();
+
+  @override
+  State<_RoleBasedHome> createState() => _RoleBasedHomeState();
+}
+
+class _RoleBasedHomeState extends State<_RoleBasedHome> {
+  bool _isAccountDeleted = false;
+
+  void _handleAccountDeleted() {
+    if (!_isAccountDeleted) {
+      setState(() {
+        _isAccountDeleted = true;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
+
+    // If account was deleted, keep showing the deleted screen
+    if (_isAccountDeleted) {
+      return _buildAccountDeletedScreen();
+    }
 
     // Use StreamBuilder to listen for real-time changes (including bans)
     return StreamBuilder<DocumentSnapshot>(
@@ -159,35 +179,11 @@ class _RoleBasedHome extends StatelessWidget {
         // Check if user document was deleted
         final docExists = snapshot.hasData && snapshot.data!.exists;
         if (!docExists) {
-          // User document was deleted - sign them out automatically
-          print('User document deleted for UID: ${user.uid}');
-          // Use Future.microtask to avoid calling signOut during build
-          Future.microtask(() async {
-            await FirebaseAuth.instance.signOut();
+          // Schedule the state update after the build completes
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _handleAccountDeleted();
           });
-          return Scaffold(
-            body: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.person_off, size: 80, color: Colors.red),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Account Deleted',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Your account has been removed.\nYou will be signed out automatically.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 14),
-                  ),
-                  const SizedBox(height: 24),
-                  const CircularProgressIndicator(),
-                ],
-              ),
-            ),
-          );
+          return _buildAccountDeletedScreen();
         }
 
         final userData = snapshot.data!.data() as Map<String, dynamic>;
@@ -218,6 +214,47 @@ class _RoleBasedHome extends StatelessWidget {
           return const ReaderHome();
         }
       },
+    );
+  }
+
+  Widget _buildAccountDeletedScreen() {
+    return Scaffold(
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () async {
+            await FirebaseAuth.instance.signOut();
+          },
+        ),
+        title: const Text('Account Status'),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.person_off, size: 80, color: Colors.red),
+            const SizedBox(height: 24),
+            const Text(
+              'Account Deleted',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Your account has been removed\nby an administrator.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 48),
+            ElevatedButton.icon(
+              onPressed: () async {
+                await FirebaseAuth.instance.signOut();
+              },
+              icon: const Icon(Icons.arrow_back),
+              label: const Text('Back to Login'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
