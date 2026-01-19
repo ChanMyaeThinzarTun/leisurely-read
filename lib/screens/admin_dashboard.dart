@@ -191,33 +191,70 @@ class _UsersTabState extends State<_UsersTab> {
   }
 
   void _showBanDialog(BuildContext context, UserModel user) {
+    int selectedDays = 1;
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Ban User'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Ban ${user.email} until:'),
-            const SizedBox(height: 16),
-            DropdownButton<int>(
-              value: 1,
-              items: const [
-                DropdownMenuItem(value: 1, child: Text('1 day')),
-                DropdownMenuItem(value: 7, child: Text('7 days')),
-                DropdownMenuItem(value: 30, child: Text('30 days')),
-                DropdownMenuItem(value: 365, child: Text('1 year')),
-              ],
-              onChanged: (value) async {
-                if (value != null) {
-                  final bannedUntil = DateTime.now().add(Duration(days: value));
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Ban User'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Ban ${user.email} until:'),
+              const SizedBox(height: 16),
+              DropdownButton<int>(
+                value: selectedDays,
+                items: const [
+                  DropdownMenuItem(value: 1, child: Text('1 day')),
+                  DropdownMenuItem(value: 7, child: Text('7 days')),
+                  DropdownMenuItem(value: 30, child: Text('30 days')),
+                  DropdownMenuItem(value: 365, child: Text('1 year')),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    setDialogState(() {
+                      selectedDays = value;
+                    });
+                  }
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () async {
+                try {
+                  final bannedUntil = DateTime.now().add(
+                    Duration(days: selectedDays),
+                  );
                   await widget.firestoreService.banUser(user.uid, bannedUntil);
                   Navigator.pop(context);
                   setState(() {
                     users = widget.firestoreService.getAllUsers();
                   });
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        '${user.email} banned for $selectedDays days',
+                      ),
+                    ),
+                  );
+                } catch (e) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error banning user: $e')),
+                  );
                 }
               },
+              child: const Text('Ban User'),
             ),
           ],
         ),

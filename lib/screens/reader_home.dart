@@ -1881,8 +1881,10 @@ class _BookDetailScreenState extends State<_BookDetailScreen> {
           : ThemeData.light().copyWith(
               scaffoldBackgroundColor: Colors.grey.shade100,
             ),
-      child: WillPopScope(
-        onWillPop: () async {
+      child: PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) async {
+          if (didPop) return;
           if (!_inLibrary && !_askedToAddLibrary && currentUser != null) {
             _askedToAddLibrary = true;
             final shouldAdd = await showDialog<bool>(
@@ -1935,7 +1937,9 @@ class _BookDetailScreenState extends State<_BookDetailScreen> {
               }
             }
           }
-          return true;
+          if (context.mounted) {
+            Navigator.of(context).pop();
+          }
         },
         child: Scaffold(
           body: CustomScrollView(

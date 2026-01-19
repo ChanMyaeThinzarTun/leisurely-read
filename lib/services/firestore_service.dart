@@ -29,13 +29,13 @@ class FirestoreService {
 
   Future<void> banUser(String userId, DateTime bannedUntil) async {
     await _firestore.collection('users').doc(userId).update({
-      'bannedUntil': bannedUntil,
+      'bannedUntil': Timestamp.fromDate(bannedUntil),
     });
   }
 
   Future<void> unbanUser(String userId) async {
     await _firestore.collection('users').doc(userId).update({
-      'bannedUntil': null,
+      'bannedUntil': FieldValue.delete(),
     });
   }
 

@@ -102,10 +102,13 @@ class _RoleBasedHome extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-    final authService = AuthService();
 
-    return FutureBuilder<Map<String, dynamic>>(
-      future: authService.getUserData(user!.uid),
+    // Use StreamBuilder to listen for real-time changes (including bans)
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .doc(user!.uid)
+          .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
@@ -127,10 +130,10 @@ class _RoleBasedHome extends StatelessWidget {
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 12),
-                  Text(
+                  const Text(
                     'Make sure your admin user is set up in Firestore.\nSee SETUP_FIX.md for instructions.',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 14),
+                    style: TextStyle(fontSize: 14),
                   ),
                   const SizedBox(height: 24),
                   ElevatedButton(
@@ -145,7 +148,7 @@ class _RoleBasedHome extends StatelessWidget {
           );
         }
 
-        if (!snapshot.hasData) {
+        if (!snapshot.hasData || !snapshot.data!.exists) {
           print('No user data found for UID: ${user.uid}');
           return Scaffold(
             body: Center(
@@ -177,7 +180,7 @@ class _RoleBasedHome extends StatelessWidget {
           );
         }
 
-        final userData = snapshot.data!;
+        final userData = snapshot.data!.data() as Map<String, dynamic>;
         final role = userData['role'];
         final isApproved = userData['isApproved'] ?? false;
 
@@ -241,10 +244,42 @@ class _PendingApprovalScreen extends StatelessWidget {
   }
 }
 
-class _BannedScreen extends StatelessWidget {
+class _BannedScreen extends StatefulWidget {
   final DateTime bannedUntil;
 
   const _BannedScreen({required this.bannedUntil});
+
+  @override
+  State<_BannedScreen> createState() => _BannedScreenState();
+}
+
+class _BannedScreenState extends State<_BannedScreen> {
+  late Duration _timeRemaining;
+
+  @override
+  void initState() {
+    super.initState();
+    _updateTimeRemaining();
+    // Check every minute if ban has expired
+    _startExpirationTimer();
+  }
+
+  void _updateTimeRemaining() {
+    _timeRemaining = widget.bannedUntil.difference(DateTime.now());
+  }
+
+  void _startExpirationTimer() {
+    Future.delayed(const Duration(minutes: 1), () {
+      if (!mounted) return;
+      _updateTimeRemaining();
+      if (_timeRemaining.isNegative) {
+        // Ban expired - trigger rebuild by forcing auth state refresh
+        setState(() {});
+      } else {
+        _startExpirationTimer();
+      }
+    });
+  }
 
   String _formatDate(DateTime date) {
     final months = [
@@ -269,15 +304,30 @@ class _BannedScreen extends StatelessWidget {
     return '${months[date.month - 1]} ${date.day}, ${date.year} at $hour:$minute $amPm';
   }
 
-  int _getDaysRemaining() {
-    final now = DateTime.now();
-    final difference = bannedUntil.difference(now);
-    return difference.inDays + (difference.inHours % 24 > 0 ? 1 : 0);
+  String _getTimeRemaining() {
+    if (_timeRemaining.isNegative) return 'Ban expired';
+
+    final days = _timeRemaining.inDays;
+    final hours = _timeRemaining.inHours % 24;
+    final minutes = _timeRemaining.inMinutes % 60;
+
+    if (days > 0) {
+      return '$days day${days != 1 ? 's' : ''}, $hours hr${hours != 1 ? 's' : ''}';
+    } else if (hours > 0) {
+      return '$hours hr${hours != 1 ? 's' : ''}, $minutes min';
+    } else {
+      return '$minutes minute${minutes != 1 ? 's' : ''}';
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final daysRemaining = _getDaysRemaining();
+    // Check if ban has expired
+    if (_timeRemaining.isNegative) {
+      // Return empty scaffold - StreamBuilder will rebuild with new data
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
     final isDarkMode = themeService.isDarkMode;
 
     return Theme(
@@ -376,7 +426,7 @@ class _BannedScreen extends StatelessWidget {
                         ),
                         const SizedBox(width: 12),
                         Text(
-                          '$daysRemaining day${daysRemaining != 1 ? 's' : ''} remaining',
+                          _getTimeRemaining(),
                           style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
@@ -400,7 +450,7 @@ class _BannedScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    _formatDate(bannedUntil),
+                    _formatDate(widget.bannedUntil),
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
