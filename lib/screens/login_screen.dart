@@ -143,9 +143,9 @@ class _LoginScreenState extends State<LoginScreen> {
           'User logged in: ${user.email}, Role: $role, Approved: $isApproved',
         );
 
-        if (role == 'admin') {
-          if (mounted) Navigator.pushReplacementNamed(context, '/admin');
-        } else if (role == 'writer' && !isApproved) {
+        // Don't navigate manually - let AuthWrapper handle it
+        // This ensures ban checks in _RoleBasedHome are applied
+        if (role == 'writer' && !isApproved) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -155,10 +155,12 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             );
           }
-        } else if (role == 'writer') {
-          if (mounted) Navigator.pushReplacementNamed(context, '/writer');
-        } else {
-          if (mounted) Navigator.pushReplacementNamed(context, '/reader');
+        }
+        // Navigate to root to let AuthWrapper show the correct screen
+        // This handles the case where user was already logged in
+        if (mounted) {
+          setState(() => loading = false);
+          Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
         }
       }
     } catch (e) {

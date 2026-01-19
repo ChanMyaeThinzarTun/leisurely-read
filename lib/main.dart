@@ -130,13 +130,6 @@ class _RoleBasedHomeState extends State<_RoleBasedHome> {
           .doc(user!.uid)
           .snapshots(),
       builder: (context, snapshot) {
-        // Debug logging
-        print('StreamBuilder state: ${snapshot.connectionState}');
-        print('Has data: ${snapshot.hasData}');
-        if (snapshot.hasData) {
-          print('Document exists: ${snapshot.data!.exists}');
-        }
-
         if (snapshot.connectionState == ConnectionState.waiting &&
             !snapshot.hasData) {
           return const Scaffold(
