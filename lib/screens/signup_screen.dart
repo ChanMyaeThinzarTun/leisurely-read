@@ -101,9 +101,31 @@ class _SignupScreenState extends State<SignupScreen> {
     } catch (e) {
       if (mounted) {
         print('Signup Error: $e');
+        String errorMessage = e.toString();
+
+        // Parse Firebase errors into friendly messages
+        if (errorMessage.contains('email-already-in-use')) {
+          errorMessage =
+              'This email is already registered. Please log in or use a different email.';
+        } else if (errorMessage.contains('invalid-email')) {
+          errorMessage = 'Please enter a valid email address.';
+        } else if (errorMessage.contains('weak-password')) {
+          errorMessage =
+              'Password is too weak. Please use at least 6 characters.';
+        } else if (errorMessage.contains('operation-not-allowed')) {
+          errorMessage =
+              'Sign up is currently disabled. Please try again later.';
+        } else if (errorMessage.contains('network-request-failed')) {
+          errorMessage =
+              'No internet connection. Please check your network and try again.';
+        } else {
+          // Generic fallback
+          errorMessage = 'Sign up failed. Please try again.';
+        }
+
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
+        ).showSnackBar(SnackBar(content: Text(errorMessage)));
       }
     } finally {
       if (mounted) {

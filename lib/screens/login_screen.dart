@@ -112,7 +112,26 @@ class _LoginScreenState extends State<LoginScreen> {
         passwordController.text.trim(),
       );
       if (user != null) {
+        // Check if user document exists in Firestore
         final userData = await authService.getUserData(user.uid);
+
+        // If userData is empty or null, account was deleted
+        if (userData.isEmpty || userData['role'] == null) {
+          // Sign out and show error
+          await authService.logout();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'This account has been deleted by an administrator.',
+                ),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+          return;
+        }
+
         final role = userData['role'];
         final isApproved = userData['isApproved'] ?? false;
 
@@ -143,16 +162,34 @@ class _LoginScreenState extends State<LoginScreen> {
         print('Login Error: $e');
         String errorMessage = e.toString();
 
-        // Parse Firebase errors
-        if (errorMessage.contains('user-not-found')) {
-          errorMessage = 'Account not found. Please sign up first.';
+        // Parse Firebase errors into friendly messages
+        if (errorMessage.contains('user-not-found') ||
+            errorMessage.contains('INVALID_LOGIN_CREDENTIALS')) {
+          errorMessage =
+              'No account found with this email. Please sign up first.';
         } else if (errorMessage.contains('wrong-password')) {
           errorMessage = 'Incorrect password. Please try again.';
         } else if (errorMessage.contains('invalid-email')) {
-          errorMessage = 'Invalid email format.';
+          errorMessage = 'Please enter a valid email address.';
+        } else if (errorMessage.contains('invalid-credential')) {
+          errorMessage =
+              'Invalid email or password. Please check and try again.';
         } else if (errorMessage.contains('too-many-requests')) {
           errorMessage =
-              'Too many failed login attempts. Please try again later.';
+              'Too many failed attempts. Please wait a few minutes and try again.';
+        } else if (errorMessage.contains('user-disabled')) {
+          errorMessage =
+              'This account has been disabled. Please contact support.';
+        } else if (errorMessage.contains('network-request-failed')) {
+          errorMessage =
+              'No internet connection. Please check your network and try again.';
+        } else if (errorMessage.contains('permission-denied')) {
+          // Account was deleted from Firestore
+          await authService.logout();
+          errorMessage = 'This account has been deleted by an administrator.';
+        } else {
+          // Generic fallback for unknown errors
+          errorMessage = 'Login failed. Please check your email and password.';
         }
 
         ScaffoldMessenger.of(

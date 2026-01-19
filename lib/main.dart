@@ -110,7 +110,15 @@ class _RoleBasedHome extends StatelessWidget {
           .doc(user!.uid)
           .snapshots(),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        // Debug logging
+        print('StreamBuilder state: ${snapshot.connectionState}');
+        print('Has data: ${snapshot.hasData}');
+        if (snapshot.hasData) {
+          print('Document exists: ${snapshot.data!.exists}');
+        }
+
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
@@ -148,32 +156,34 @@ class _RoleBasedHome extends StatelessWidget {
           );
         }
 
-        if (!snapshot.hasData || !snapshot.data!.exists) {
-          print('No user data found for UID: ${user.uid}');
+        // Check if user document was deleted
+        final docExists = snapshot.hasData && snapshot.data!.exists;
+        if (!docExists) {
+          // User document was deleted - sign them out automatically
+          print('User document deleted for UID: ${user.uid}');
+          // Use Future.microtask to avoid calling signOut during build
+          Future.microtask(() async {
+            await FirebaseAuth.instance.signOut();
+          });
           return Scaffold(
             body: Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.warning, size: 80, color: Color(0xFFFFB74D)),
+                  const Icon(Icons.person_off, size: 80, color: Colors.red),
                   const SizedBox(height: 24),
                   const Text(
-                    'User Profile Not Found',
+                    'Account Deleted',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 12),
                   const Text(
-                    'Your user document is missing in Firestore.\nPlease logout and try signing in again.',
+                    'Your account has been removed.\nYou will be signed out automatically.',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 14),
                   ),
                   const SizedBox(height: 24),
-                  ElevatedButton(
-                    onPressed: () async {
-                      await FirebaseAuth.instance.signOut();
-                    },
-                    child: const Text('Logout'),
-                  ),
+                  const CircularProgressIndicator(),
                 ],
               ),
             ),
